@@ -113,3 +113,5 @@ export default async function BeneficiariesPage({ searchParams }: { searchParams
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

@@ -94,3 +94,5 @@ export default async function HandoverPage({ params }: { params: Promise<{ id: s
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

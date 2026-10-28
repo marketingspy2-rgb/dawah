@@ -328,3 +328,5 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

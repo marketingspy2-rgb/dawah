@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   // Track usage for the platform metrics, at most every 10 minutes.
   if (!user.lastSeenAt || Date.now() - new Date(user.lastSeenAt).getTime() > 10 * 60_000) {
-    mutate((db) => {
+    await mutate((db) => {
       const u = db.users.find((x) => x.id === user.id);
       if (u) u.lastSeenAt = new Date().toISOString();
     });

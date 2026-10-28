@@ -95,3 +95,5 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

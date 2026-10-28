@@ -1,51 +1,57 @@
 import "server-only";
-import fs from "node:fs";
-import path from "node:path";
+import { readSnapshot, writeSnapshot } from "@/lib/storage";
 import { DB_VERSION, createSeed } from "./seed";
 import type { DB } from "./types";
 
 /**
- * Demo storage: one JSON file on the machine running the demo.
- * Every read and write goes through this module, so it can later be
+ * Demo storage. Every read and write goes through this module, so it can later be
  * swapped for a real database without touching the screens.
+ *
+ * Call `await loadDb()` once per request (getCurrentUser does it), then read with `readDb()`.
  */
-const FILE = path.join(process.cwd(), "data", "db.json");
-
 let cache: DB | null = null;
+let cacheRev: number | null = null;
 
-export function readDb(): DB {
-  if (cache) return cache;
-  try {
-    const parsed = JSON.parse(fs.readFileSync(FILE, "utf8")) as DB;
-    if (parsed.version === DB_VERSION) {
-      cache = parsed;
-      return parsed;
+export async function loadDb(): Promise<DB> {
+  const snap = await readSnapshot(cache ? cacheRev : null);
+  if (snap === "same" && cache) return cache;
+  if (snap && snap !== "same") {
+    try {
+      const parsed = JSON.parse(snap.data) as DB;
+      if (parsed.version === DB_VERSION) {
+        cache = parsed;
+        cacheRev = snap.rev;
+        return parsed;
+      }
+    } catch {
+      // Unreadable data: start again from fresh demo data.
     }
-  } catch {
-    // Missing or unreadable file: start from fresh demo data.
   }
   return resetDb();
 }
 
-export function writeDb(db: DB) {
-  cache = db;
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  const tmp = `${FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 1));
-  fs.renameSync(tmp, FILE);
+export function readDb(): DB {
+  if (!cache) throw new Error("loadDb() must run before readDb()");
+  return cache;
 }
 
-/** Apply a change and save it. */
-export function mutate<T>(fn: (db: DB) => T): T {
-  const db = readDb();
+async function saveDb(db: DB) {
+  cache = db;
+  cacheRev = (cacheRev ?? 0) + 1;
+  await writeSnapshot({ rev: cacheRev, data: JSON.stringify(db) });
+}
+
+/** Apply a change to the latest data and save it. */
+export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
+  const db = await loadDb();
   const result = fn(db);
-  writeDb(db);
+  await saveDb(db);
   return result;
 }
 
-export function resetDb(): DB {
+export async function resetDb(): Promise<DB> {
   const db = createSeed(new Date());
-  writeDb(db);
+  await saveDb(db);
   return db;
 }
 

@@ -170,3 +170,5 @@ export default async function TodayPage() {
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

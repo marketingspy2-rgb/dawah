@@ -67,3 +67,5 @@ export default async function CurriculumPage() {
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

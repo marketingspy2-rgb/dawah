@@ -1,5 +1,5 @@
 import { login, toggleLang } from "@/app/actions";
-import { readDb } from "@/lib/db";
+import { loadDb } from "@/lib/db";
 import { LANG_LABELS, ROLE_LABELS, translator } from "@/lib/i18n";
 import { activeLoad } from "@/lib/logic";
 import { getUiLang } from "@/lib/session";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage() {
   const lang = await getUiLang();
   const t = translator(lang);
-  const db = readDb();
+  const db = await loadDb();
   const groups: Role[] = ["admin", "supervisor", "caller"];
 
   return (

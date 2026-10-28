@@ -6,3 +6,7 @@ data/db.json
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+/dist/
+.vinext/
+.cloudflare/
+.wrangler/

@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BENEFICIARY_LINES, TEMPLATES, fillTemplate, guessCountryFromPhone, type TemplateId } from "@/lib/content";
-import { mutate, newId, readDb, resetDb } from "@/lib/db";
+import { loadDb, mutate, newId, readDb, resetDb } from "@/lib/db";
 import {
   DAY,
   HOUR,
@@ -41,10 +41,10 @@ function refresh(id?: string) {
 
 export async function login(formData: FormData) {
   const id = String(formData.get("userId"));
-  const user = readDb().users.find((u) => u.id === id);
+  const user = (await loadDb()).users.find((u) => u.id === id);
   if (!user) return;
   (await cookies()).set(USER_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/" });
-  mutate((db) => {
+  await mutate((db) => {
     const u = db.users.find((x) => x.id === id)!;
     u.lastSeenAt = new Date().toISOString();
   });
@@ -65,7 +65,7 @@ export async function toggleLang() {
 export async function resetDemo() {
   const user = await requireUser();
   if (user.role !== "admin") return;
-  resetDb();
+  await resetDb();
   refresh();
 }
 
@@ -76,7 +76,7 @@ export async function sendMessage(formData: FormData) {
   const id = String(formData.get("beneficiaryId"));
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     if (!windowOpen(db, b)) throw new Error("24h window closed: use a template");
     db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text, translation: null, at: new Date().toISOString(), authorId: user.id, status: "sent", kind: "text" });
@@ -91,7 +91,7 @@ export async function sendTemplate(formData: FormData) {
   const templateId = String(formData.get("templateId")) as TemplateId;
   const tpl = TEMPLATES[templateId];
   if (!tpl) return;
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     const vars = { name: firstName(b), caller: user.name.split(" ")[0] };
     db.messages.push({
@@ -114,7 +114,7 @@ export async function sendTemplate(formData: FormData) {
 export async function simulateReply(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     const line = BENEFICIARY_LINES[1 + Math.floor(Math.random() * (BENEFICIARY_LINES.length - 1))];
     db.messages.forEach((m) => {
@@ -132,7 +132,7 @@ export async function addNote(formData: FormData) {
   const id = String(formData.get("beneficiaryId"));
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     db.notes.push({ id: newId("N"), beneficiaryId: b.id, authorId: user.id, text, at: new Date().toISOString(), needsContact: formData.get("needsContact") === "on" });
     audit(db, user, "add_note", b.id);
@@ -146,7 +146,7 @@ export async function addTask(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const due = String(formData.get("due") ?? "");
   if (!title || !due) return;
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     db.tasks.push({ id: newId("TK"), beneficiaryId: b.id, assigneeId: b.assignedTo, title, kind: "followup", due: new Date(due).toISOString(), createdAt: new Date().toISOString(), doneAt: null });
     audit(db, user, "add_task", b.id);
@@ -158,7 +158,7 @@ export async function completeTask(formData: FormData) {
   const user = await requireUser();
   const taskId = String(formData.get("taskId"));
   let bId = "";
-  mutate((db) => {
+  await mutate((db) => {
     const task = db.tasks.find((t) => t.id === taskId);
     if (!task) return;
     getBeneficiary(db, user, task.beneficiaryId);
@@ -174,7 +174,7 @@ export async function changeStage(formData: FormData) {
   const id = String(formData.get("beneficiaryId"));
   const stage = String(formData.get("stage")) as Stage;
   if (!STAGES.includes(stage)) return;
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     if (b.stage === stage) return;
     const now = new Date();
@@ -197,7 +197,7 @@ export async function regenerateSummary(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
   const lang = await getUiLang();
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     b.summary = { text: buildSummary(db, b, lang), generatedAt: new Date().toISOString(), reviewed: false };
   });
@@ -208,7 +208,7 @@ export async function markSummaryReviewed(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
   const text = String(formData.get("text") ?? "").trim();
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     if (!b.summary) return;
     if (text) b.summary.text = text;
@@ -221,7 +221,7 @@ export async function markSummaryReviewed(formData: FormData) {
 export async function updateProfile(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     b.background = String(formData.get("background") ?? b.background);
     b.needs = String(formData.get("needs") ?? b.needs);
@@ -246,7 +246,7 @@ export async function addBeneficiary(formData: FormData) {
   if (dup) redirect(`/beneficiaries/new?dup=${encodeURIComponent(dup.sensitive ? dup.alias : dup.name)}`);
   let newBenId = "";
   let assigneeName = "";
-  mutate((db) => {
+  await mutate((db) => {
     const country = guessCountryFromPhone(phone);
     // A caller keeps the case only when language and gender match; otherwise it goes to the best match.
     const selfFits = user.role === "caller" && user.gender === gender && user.languages.includes(language);
@@ -300,7 +300,7 @@ export async function importChat(formData: FormData) {
   const raw = await file.text();
   const lines = parseWhatsAppExport(raw);
   let added = 0;
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     const senders = [...new Set(lines.map((l) => l.sender))];
     const first = b.name.split(" ")[0].toLowerCase();
@@ -338,7 +338,7 @@ export async function importChat(formData: FormData) {
 export async function sendNextLesson(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     const state = learnerState(db, b);
     if (state.waitingOnLesson || state.completed >= state.total) return;
@@ -361,7 +361,7 @@ export async function simulateLesson(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
   const correct = formData.get("correct") !== "no";
-  mutate((db) => {
+  await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     const p = db.progress.find((x) => x.beneficiaryId === b.id);
     const current = p?.events[p.events.length - 1];
@@ -387,7 +387,7 @@ export async function handover(formData: FormData) {
   const fromId = String(formData.get("fromId"));
   const newStatus = String(formData.get("newStatus") ?? "leave") as User["status"];
   let moved = 0;
-  mutate((db) => {
+  await mutate((db) => {
     const from = db.users.find((u) => u.id === fromId);
     if (!from) return;
     if (user.role === "supervisor" && supervisorIdFor(db, fromId) !== user.id) return;
@@ -416,7 +416,7 @@ export async function setUserStatus(formData: FormData) {
   if (user.role === "caller") return;
   const id = String(formData.get("userId"));
   const status = String(formData.get("status")) as User["status"];
-  mutate((db) => {
+  await mutate((db) => {
     const u = db.users.find((x) => x.id === id);
     if (u && ["available", "leave", "left"].includes(status)) u.status = status;
     audit(db, user, `status:${status}`, id);

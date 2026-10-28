@@ -69,3 +69,5 @@ export default async function NewBeneficiaryPage({ searchParams }: { searchParam
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

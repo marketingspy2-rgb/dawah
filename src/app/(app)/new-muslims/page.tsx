@@ -121,3 +121,5 @@ export default async function NewMuslimsPage({ searchParams }: { searchParams: P
     </>
   );
 }
+
+export const dynamic = "force-dynamic";

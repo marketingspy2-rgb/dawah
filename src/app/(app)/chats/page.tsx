@@ -28,7 +28,7 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
   const ticks = { sent: "✓", delivered: "✓✓", read: "✓✓" } as const;
 
   return (
-    <div className="grid h-[calc(100vh-140px)] min-h-[520px] overflow-hidden rounded-xl border border-border bg-surface lg:h-[calc(100vh-56px)] lg:grid-cols-[320px_1fr]">
+    <div className="grid h-[calc(100vh-140px)] min-h-[520px] overflow-hidden rounded-xl border border-border bg-surface grid-cols-1 lg:h-[calc(100vh-56px)] lg:grid-cols-[320px_1fr]">
       <aside className={cx("flex min-h-0 flex-col border-border lg:border-e", selected && "hidden lg:flex")}>
         <form className="border-b border-border p-3">
           <input name="q" defaultValue={q} placeholder={t("search")} />
@@ -151,3 +151,5 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
     </div>
   );
 }
+
+export const dynamic = "force-dynamic";
