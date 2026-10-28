@@ -1,0 +1,196 @@
+import type { Lang, Lesson } from "./types";
+
+export type Country = { code: string; ar: string; en: string; tz: string; dial: string; lang: Lang };
+
+export const COUNTRIES: Country[] = [
+  { code: "MX", ar: "المكسيك", en: "Mexico", tz: "America/Mexico_City", dial: "+52", lang: "es" },
+  { code: "CO", ar: "كولومبيا", en: "Colombia", tz: "America/Bogota", dial: "+57", lang: "es" },
+  { code: "PE", ar: "بيرو", en: "Peru", tz: "America/Lima", dial: "+51", lang: "es" },
+  { code: "PH", ar: "الفلبين", en: "Philippines", tz: "Asia/Manila", dial: "+63", lang: "fil" },
+  { code: "PK", ar: "باكستان", en: "Pakistan", tz: "Asia/Karachi", dial: "+92", lang: "ur" },
+  { code: "BD", ar: "بنغلاديش", en: "Bangladesh", tz: "Asia/Dhaka", dial: "+880", lang: "bn" },
+  { code: "IN", ar: "الهند", en: "India", tz: "Asia/Kolkata", dial: "+91", lang: "hi" },
+  { code: "FR", ar: "فرنسا", en: "France", tz: "Europe/Paris", dial: "+33", lang: "fr" },
+  { code: "CI", ar: "ساحل العاج", en: "Côte d'Ivoire", tz: "Africa/Abidjan", dial: "+225", lang: "fr" },
+  { code: "CM", ar: "الكاميرون", en: "Cameroon", tz: "Africa/Douala", dial: "+237", lang: "fr" },
+];
+
+export function countryByCode(code: string) {
+  return COUNTRIES.find((c) => c.code === code);
+}
+
+/** Guess a timezone from the phone number's country code. The caller can change it. */
+export function guessCountryFromPhone(phone: string): Country | undefined {
+  const clean = phone.replace(/[^\d+]/g, "");
+  return [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find((c) => clean.startsWith(c.dial));
+}
+
+export type TemplateId = "lesson_ready" | "checkin" | "new_caller" | "followup";
+
+/**
+ * Message templates approved with Meta. Wording stays neutral on purpose:
+ * a notification preview may be seen by family members.
+ */
+export const TEMPLATES: Record<TemplateId, { ar: string; en: string } & Record<Lang, string>> = {
+  lesson_ready: {
+    ar: "مرحبًا {name}، درسك الجديد جاهز. اضغط «ابدأ» عندما يكون لديك بضع دقائق.",
+    en: "Hello {name}, your new lesson is ready. Tap “Start” when you have a few minutes.",
+    es: "Hola {name}, tu nueva lección está lista. Pulsa «Empezar» cuando tengas unos minutos.",
+    fil: "Kumusta {name}, handa na ang bago mong aralin. Pindutin ang «Simulan» kapag may ilang minuto ka.",
+    ur: "ہیلو {name}، آپ کا نیا سبق تیار ہے۔ جب آپ کے پاس چند منٹ ہوں تو «شروع کریں» دبائیں۔",
+    bn: "হ্যালো {name}, আপনার নতুন পাঠ প্রস্তুত। কয়েক মিনিট সময় পেলে «শুরু করুন» চাপুন।",
+    hi: "नमस्ते {name}, आपका नया पाठ तैयार है। जब कुछ मिनट हों तो «शुरू करें» दबाएँ।",
+    fr: "Bonjour {name}, votre nouvelle leçon est prête. Appuyez sur « Commencer » quand vous avez quelques minutes.",
+  },
+  checkin: {
+    ar: "مرحبًا {name}، كيف حالك؟ نحن هنا إذا احتجت أي شيء.",
+    en: "Hello {name}, how are you doing? We are here if you need anything.",
+    es: "Hola {name}, ¿cómo estás? Estamos aquí si necesitas algo.",
+    fil: "Kumusta {name}, kumusta ka na? Nandito lang kami kung may kailangan ka.",
+    ur: "ہیلو {name}، آپ کیسے ہیں؟ اگر آپ کو کسی چیز کی ضرورت ہو تو ہم حاضر ہیں۔",
+    bn: "হ্যালো {name}, আপনি কেমন আছেন? কিছু দরকার হলে আমরা আছি।",
+    hi: "नमस्ते {name}, आप कैसे हैं? अगर आपको किसी चीज़ की ज़रूरत हो तो हम यहाँ हैं।",
+    fr: "Bonjour {name}, comment allez-vous ? Nous sommes là si vous avez besoin de quoi que ce soit.",
+  },
+  new_caller: {
+    ar: "مرحبًا {name}، اسمي {caller}. من الآن يمكنك التواصل معي، وأنا أعرف قصتك. كيف حالك؟",
+    en: "Hello {name}, my name is {caller}. From now on you can reach me, and I already know your story. How are you?",
+    es: "Hola {name}, me llamo {caller}. A partir de ahora puedes escribirme, y ya conozco tu historia. ¿Cómo estás?",
+    fil: "Kumusta {name}, ako si {caller}. Mula ngayon, ako na ang makakausap mo, at alam ko na ang iyong kuwento. Kumusta ka?",
+    ur: "ہیلو {name}، میرا نام {caller} ہے۔ اب سے آپ مجھ سے رابطہ کر سکتے ہیں، اور مجھے آپ کی کہانی معلوم ہے۔ آپ کیسے ہیں؟",
+    bn: "হ্যালো {name}, আমার নাম {caller}। এখন থেকে আপনি আমার সাথে যোগাযোগ করতে পারেন, এবং আমি আপনার গল্প জানি। আপনি কেমন আছেন?",
+    hi: "नमस्ते {name}, मेरा नाम {caller} है। अब से आप मुझसे संपर्क कर सकते हैं, और मुझे आपकी कहानी पता है। आप कैसे हैं?",
+    fr: "Bonjour {name}, je m'appelle {caller}. Désormais, vous pouvez me contacter, et je connais déjà votre parcours. Comment allez-vous ?",
+  },
+  followup: {
+    ar: "مرحبًا {name}، هل نكمل حديثنا؟ هل الوقت مناسب الآن؟",
+    en: "Hello {name}, can we continue our conversation? Is now a good time?",
+    es: "Hola {name}, ¿podemos continuar nuestra conversación? ¿Es un buen momento?",
+    fil: "Kumusta {name}, puwede ba nating ituloy ang ating usapan? Magandang oras ba ngayon?",
+    ur: "ہیلو {name}، کیا ہم اپنی بات چیت جاری رکھ سکتے ہیں؟ کیا یہ مناسب وقت ہے؟",
+    bn: "হ্যালো {name}, আমরা কি আমাদের আলাপ চালিয়ে যেতে পারি? এখন কি সুবিধাজনক সময়?",
+    hi: "नमस्ते {name}, क्या हम अपनी बातचीत जारी रख सकते हैं? क्या अभी सही समय है?",
+    fr: "Bonjour {name}, pouvons-nous reprendre notre conversation ? Est-ce un bon moment ?",
+  },
+};
+
+export function fillTemplate(text: string, vars: Record<string, string>) {
+  return text.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? "");
+}
+
+type Line = { ar: string } & Record<Lang, string>;
+
+/** Sample lines a beneficiary might send. Used for seed data and the reply simulator. */
+export const BENEFICIARY_LINES: Line[] = [
+  {
+    ar: "مرحبًا، رأيت صفحتكم وأريد أن أتعرف على الإسلام.",
+    es: "Hola, vi su página y quiero conocer el islam.",
+    fil: "Hello, nakita ko ang inyong page at gusto kong matuto tungkol sa Islam.",
+    ur: "ہیلو، میں نے آپ کا پیج دیکھا اور اسلام کے بارے میں جاننا چاہتا ہوں۔",
+    bn: "হ্যালো, আমি আপনাদের পেজ দেখেছি এবং ইসলাম সম্পর্কে জানতে চাই।",
+    hi: "नमस्ते, मैंने आपका पेज देखा और इस्लाम के बारे में जानना चाहता हूँ।",
+    fr: "Bonjour, j'ai vu votre page et je veux découvrir l'islam.",
+  },
+  {
+    ar: "ماذا يعتقد المسلمون عن عيسى؟",
+    es: "¿Qué creen los musulmanes sobre Jesús?",
+    fil: "Ano ang paniniwala ng mga Muslim tungkol kay Hesus?",
+    ur: "مسلمان حضرت عیسیٰ کے بارے میں کیا عقیدہ رکھتے ہیں؟",
+    bn: "যিশু সম্পর্কে মুসলিমরা কী বিশ্বাস করে?",
+    hi: "मुसलमान ईसा के बारे में क्या मानते हैं?",
+    fr: "Que croient les musulmans au sujet de Jésus ?",
+  },
+  {
+    ar: "شكرًا، قرأت الدرس.",
+    es: "Gracias, ya leí la lección.",
+    fil: "Salamat, nabasa ko na ang aralin.",
+    ur: "شکریہ، میں نے سبق پڑھ لیا۔",
+    bn: "ধন্যবাদ, আমি পাঠটি পড়েছি।",
+    hi: "धन्यवाद, मैंने पाठ पढ़ लिया।",
+    fr: "Merci, j'ai lu la leçon.",
+  },
+  {
+    ar: "عندي سؤال عن الصلاة.",
+    es: "Tengo una pregunta sobre la oración.",
+    fil: "May tanong ako tungkol sa pagdarasal.",
+    ur: "مجھے نماز کے بارے میں ایک سوال ہے۔",
+    bn: "নামাজ সম্পর্কে আমার একটি প্রশ্ন আছে।",
+    hi: "मेरा नमाज़ के बारे में एक सवाल है।",
+    fr: "J'ai une question sur la prière.",
+  },
+  {
+    ar: "مشغول اليوم، سأكتب غدًا.",
+    es: "Hoy estoy ocupado, mañana te escribo.",
+    fil: "Abala ako ngayon, bukas na lang ako magme-message.",
+    ur: "آج مصروف ہوں، کل لکھوں گا۔",
+    bn: "আজ ব্যস্ত, কাল লিখব।",
+    hi: "आज व्यस्त हूँ, कल लिखूँगा।",
+    fr: "Je suis occupé aujourd'hui, je vous écris demain.",
+  },
+  {
+    ar: "عائلتي لا تعرف بعد.",
+    es: "Mi familia todavía no lo sabe.",
+    fil: "Hindi pa alam ng pamilya ko.",
+    ur: "میرے گھر والوں کو ابھی معلوم نہیں۔",
+    bn: "আমার পরিবার এখনো জানে না।",
+    hi: "मेरे परिवार को अभी पता नहीं है।",
+    fr: "Ma famille ne le sait pas encore.",
+  },
+];
+
+/** Sample lines a caller might send, in the beneficiary's language. */
+export const CALLER_LINES: Line[] = [
+  {
+    ar: "أهلاً! يسعدني أن أجيب عن أسئلتك.",
+    es: "¡Bienvenido! Con gusto respondo tus preguntas.",
+    fil: "Maligayang pagdating! Masaya akong sagutin ang mga tanong mo.",
+    ur: "خوش آمدید! آپ کے سوالوں کا جواب دے کر خوشی ہوگی۔",
+    bn: "স্বাগতম! আপনার প্রশ্নের উত্তর দিতে পেরে খুশি হব।",
+    hi: "स्वागत है! आपके सवालों का जवाब देकर खुशी होगी।",
+    fr: "Bienvenue ! Je serai heureux de répondre à vos questions.",
+  },
+  {
+    ar: "هذا شرح مختصر، خذ وقتك.",
+    es: "Aquí tienes una breve explicación, tómate tu tiempo.",
+    fil: "Narito ang maikling paliwanag, huwag kang magmadali.",
+    ur: "یہ مختصر وضاحت ہے، آرام سے پڑھیں۔",
+    bn: "এখানে একটি সংক্ষিপ্ত ব্যাখ্যা, সময় নিয়ে পড়ুন।",
+    hi: "यह एक छोटी व्याख्या है, आराम से पढ़ें।",
+    fr: "Voici une courte explication, prenez votre temps.",
+  },
+  {
+    ar: "كيف حالك اليوم؟",
+    es: "¿Cómo estás hoy?",
+    fil: "Kumusta ka ngayon?",
+    ur: "آج آپ کیسے ہیں؟",
+    bn: "আজ আপনি কেমন আছেন?",
+    hi: "आज आप कैसे हैं?",
+    fr: "Comment allez-vous aujourd'hui ?",
+  },
+  {
+    ar: "هل لديك سؤال عن الدرس الأخير؟",
+    es: "¿Tienes alguna pregunta sobre la última lección?",
+    fil: "May tanong ka ba tungkol sa huling aralin?",
+    ur: "کیا آخری سبق کے بارے میں کوئی سوال ہے؟",
+    bn: "শেষ পাঠ নিয়ে কোনো প্রশ্ন আছে?",
+    hi: "पिछले पाठ के बारे में कोई सवाल है?",
+    fr: "Avez-vous une question sur la dernière leçon ?",
+  },
+];
+
+/**
+ * Placeholder curriculum. The center's approved curriculum replaces these
+ * titles and adds the lesson text and audio in each language.
+ */
+export const LESSONS: Lesson[] = [
+  { id: "L1", order: 1, title: { ar: "الشهادتان ومعناهما", en: "The Shahada and its meaning" }, question: { ar: "ما معنى «لا إله إلا الله»؟", en: "What does “there is no god but Allah” mean?" } },
+  { id: "L2", order: 2, title: { ar: "الطهارة والوضوء", en: "Purification and wudu" }, question: { ar: "متى يجب الوضوء؟", en: "When is wudu required?" } },
+  { id: "L3", order: 3, title: { ar: "الصلاة: أوقاتها وعددها", en: "Prayer: its times and number" }, question: { ar: "كم صلاة مفروضة في اليوم؟", en: "How many obligatory prayers are there each day?" } },
+  { id: "L4", order: 4, title: { ar: "الصلاة: كيف أصلي", en: "Prayer: how to pray" }, question: { ar: "كم ركعة في صلاة الفجر؟", en: "How many units does the Fajr prayer have?" } },
+  { id: "L5", order: 5, title: { ar: "سورة الفاتحة", en: "Surah Al-Fatiha" }, question: { ar: "متى نقرأ الفاتحة؟", en: "When do we recite Al-Fatiha?" } },
+  { id: "L6", order: 6, title: { ar: "أركان الإيمان", en: "The pillars of faith" }, question: { ar: "كم عدد أركان الإيمان؟", en: "How many pillars of faith are there?" } },
+  { id: "L7", order: 7, title: { ar: "الصيام ورمضان", en: "Fasting and Ramadan" }, question: { ar: "من الفجر إلى متى نصوم؟", en: "We fast from dawn until when?" } },
+  { id: "L8", order: 8, title: { ar: "الزكاة والصدقة", en: "Zakat and charity" }, question: { ar: "ما الفرق بين الزكاة والصدقة؟", en: "What is the difference between zakat and charity?" } },
+  { id: "L9", order: 9, title: { ar: "الأخلاق والتعامل مع الأسرة", en: "Character and family" }, question: { ar: "كيف أتعامل مع أسرتي غير المسلمة؟", en: "How should I treat my non-Muslim family?" } },
+  { id: "L10", order: 10, title: { ar: "الثبات والمجتمع", en: "Staying steady and finding community" }, question: { ar: "أين أجد مسجدًا قريبًا؟", en: "Where can I find a nearby mosque?" } },
+];

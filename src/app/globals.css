@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --surface-2: #f0f2ef;
+  --border: #e2e5e0;
+  --text: #1c2420;
+  --muted: #5f6b65;
+  --brand: #0f6b5c;
+  --brand-soft: #e3f1ed;
+  --wa: #128c4a;
+  --wa-soft: #e5f6ec;
+  --green: #15803d;
+  --green-soft: #e6f4ea;
+  --yellow: #a16207;
+  --yellow-soft: #fdf3d8;
+  --red: #b42318;
+  --red-soft: #fdeceb;
+  --bubble-in: #ffffff;
+  --bubble-out: #dcf4e3;
+  --chat-bg: #efeae2;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-wa: var(--wa);
+  --color-wa-soft: var(--wa-soft);
+  --color-ok: var(--green);
+  --color-ok-soft: var(--green-soft);
+  --color-warn: var(--yellow);
+  --color-warn-soft: var(--yellow-soft);
+  --color-bad: var(--red);
+  --color-bad-soft: var(--red-soft);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-out: var(--bubble-out);
+  --color-chat: var(--chat-bg);
+  --font-sans: system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", "Noto Sans", Arial, sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: start;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
