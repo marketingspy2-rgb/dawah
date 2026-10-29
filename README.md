@@ -13,7 +13,7 @@
 
 ## الصفحات
 
-- **يومي / نظرة عامة:** للداعية والمعلم ما يحتاجه اليوم (رسائل تنتظر، دروس اليوم، مسلمون جدد يحتاجون اطمئنانًا، مهام، ملاحظات). للمشرف والإدارة: ما يحتاج تدخلهم وحال كل داعية ومعلم.
+- **يومي / نظرة عامة:** للداعية والمعلم «قائمة اتصال اليوم» مرتبة حسب الأهمية مع سبب لكل شخص ومراعاة توقيته المحلي، وزر «أرسل من جوالي» يفتح واتساب على جوال الموظف برسالة جاهزة بلغة المستفيد ويسجّلها في ملفه. للمشرف والإدارة: ما يحتاج تدخلهم وحال كل داعية ومعلم.
 - **المحادثات:** على الرقم الرسمي، مع ترجمة عربية، ونافذة الـ24 ساعة، والقوالب المعتمدة، وبطاقة لكل درس مرسل تُظهر هل فُتح أو أُكمل.
 - **المجموعات:** أعضاء كل مجموعة وتقدمهم، وإعدادات الجدولة، وزر «أرسل للمجموعة» عبر واتساب.
 - **جدول الدروس:** ما سيُرسل في الأيام السبعة القادمة، مع زر «أرسل الآن» لكل شخص.
@@ -23,6 +23,7 @@
 - **المؤشرات:** الدعاة والمعلمون، المشرفون، مسار الدعوة، التعليم، واستخدام المنصة.
 - **الأرقام الشخصية:** لمن يتواصل من جواله الشخصي، دون أي ربط بواتساب: زر «سجّل تواصلك» بضغطة واحدة، وصفحة «إضافة محادثة» تستقبل المحادثة المصدّرة من واتساب (بالمشاركة المباشرة بعد تثبيت المنصة على الجوال، أو برفع الملف، أو بلصق رسائل منسوخة).
 - **إحصائيات التواصل:** المحادثات النشطة، وسرعة الرد، وتجاوب المستفيدين، والمنقطعون، وأنسب أوقات التواصل، ومن تأخر في إضافة محادثاته.
+- **قواعد المتابعة:** للإدارة والمشرفين، مهام تنشئها المنصة وحدها (بعد كل تواصل، عند عدم الرد، أيام الاطمئنان على المسلم الجديد، المتعلم المنقطع، الحالة الجديدة) مع تشغيل كل قاعدة وضبط أيامها.
 - **التحديثات:** كل تعديل على المنصة مشروح للمستخدم بلغة بسيطة.
 - **الخصوصية:** الحالات الحساسة تظهر برقم بدل الاسم إلا للمسؤول عنها ومشرفه، وكل فتح للملف مسجّل.
 
@@ -80,6 +81,7 @@ npx wrangler deploy    # نشر يدوي (يتطلب wrangler login أو CLOUDFL
 - `src/lib/seed.ts` يولّد البيانات التجريبية بنفس النتيجة كل مرة، والتواريخ نسبية لوقت التشغيل.
 - `src/lib/logic.ts` قواعد الصلاحيات، والإسناد، ونافذة الـ24 ساعة، وحساب المؤشرات.
 - `src/lib/chat-import.ts` قراءة محادثات واتساب المصدّرة والمنسوخة، و`src/app/api/share` يستقبل المشاركة من الجوال، و`src/lib/insights.ts` إحصائيات التواصل.
+- `src/lib/daily.ts` قائمة الاتصال اليومية، و`src/lib/phone-send.ts` رسائل «أرسل من جوالي»، و`src/lib/rules.ts` قواعد المتابعة التي تعمل بعد كل تعديل على البيانات.
 - `src/lib/updates.ts` سجل التحديثات الظاهر للمستخدمين. **أضف مدخلًا في أعلاه مع كل تعديل يلاحظه المستخدم**، بلغة بسيطة وبلا مصطلحات تقنية.
 
 ---
@@ -93,5 +95,7 @@ A demo of a multilingual platform for management, supervisors, callers and teach
 **Cloudflare:** the same app runs on Workers through vinext, with demo data in a D1 database (`dawah-demo`) that is created on first deploy. Connect the repo in the Cloudflare dashboard (Workers & Pages → Create → Import a repository) with build command `npm run build:vinext` and deploy command `npx wrangler deploy`.
 
 **Personal numbers:** staff who talk to people from their own WhatsApp keep the platform up to date without connecting WhatsApp to anything: a one-tap contact log on each file, and an "Add a chat" page that takes an exported chat (shared straight from WhatsApp once the platform is installed on the phone, uploaded, or pasted). "Conversation stats" turns all of it into reply times, answer rates, silent beneficiaries and the best hours to reach people.
+
+**Daily operations:** "My day" opens on a ranked call list with a reason for each person and their local time; "Send from my phone" opens WhatsApp on the staff member's own phone with a ready message in the beneficiary's language and records it. "Follow-up rules" (management and supervisors) create tasks on their own after contacts, missed answers, new-Muslim check-in days, silent learners and unreached new cases.
 
 **Updates:** `src/lib/updates.ts` feeds the in-app "Updates" page. Add an entry at the top for every change users will notice, in plain words.

@@ -97,6 +97,8 @@ export type Message = {
   kind: MessageKind;
   /** Lesson link carried by a lesson message. */
   eventId?: string;
+  /** Sent by the staff member from their own phone's WhatsApp, opened from the platform. */
+  via?: "phone";
 };
 
 export type Note = {
@@ -119,6 +121,8 @@ export type Task = {
   due: string;
   createdAt: string;
   doneAt: string | null;
+  /** Set when a follow-up rule created the task, so it is never created twice. */
+  rule?: string;
 };
 
 /** Text in Arabic and English for staff, plus each beneficiary language. */
@@ -187,7 +191,8 @@ export type Touch = {
   at: string;
   /** What the tap changed on its own, so "undo" can put it back. */
   movedStage?: boolean;
-  taskId?: string;
+  /** Follow-up tasks due today that this contact settled. */
+  closedTasks?: string[];
 };
 
 /** One upload of WhatsApp messages into a file: an exported chat, a share or a paste. */
@@ -209,6 +214,22 @@ export type PendingShare = {
   fileName: string | null;
   at: string;
 };
+
+/** Follow-up rules: the platform creates these tasks on its own. Managed on the rules page. */
+export type RuleSettings = {
+  /** After any contact with someone in the dawah stages, follow up after this many days. */
+  afterContact: { on: boolean; contacted: number; interested: number; learning: number };
+  /** After "no answer", try again after this many days; after `tries` in a row, raise it. */
+  noAnswer: { on: boolean; days: number; tries: number };
+  /** Check in on a new Muslim on these days after embracing Islam. */
+  newMuslim: { on: boolean; days: number[] };
+  /** A learner who has gone silent gets a check-in. */
+  silentLearner: { on: boolean };
+  /** Someone new with no contact after this many hours gets a first-contact task. */
+  newCase: { on: boolean; hours: number };
+};
+
+export type Settings = { rules: RuleSettings; rulesUpdatedAt: string | null; rulesUpdatedBy: string | null };
 
 export type AuditEntry = {
   id: string;
@@ -235,5 +256,6 @@ export type DB = {
   touches: Touch[];
   imports: ChatImport[];
   shares: PendingShare[];
+  settings: Settings;
   audit: AuditEntry[];
 };

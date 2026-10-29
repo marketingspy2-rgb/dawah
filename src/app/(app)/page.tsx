@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { AlertTriangle, BellRing, BookOpen, CalendarClock, CheckCircle2, ClipboardList, Clock, HeartPulse, MessageCircle, StickyNote, Users } from "lucide-react";
+import { AlertTriangle, BellRing, PhoneCall, BookOpen, CalendarClock, CheckCircle2, ClipboardList, Clock, HeartPulse, MessageCircle, StickyNote, Users } from "lucide-react";
 import { completeTask, sendLessonNow } from "@/app/actions";
 import { Avatar, Bar, Card, Empty, LessonDots, LevelBadge, Notice, PageHeader, PersonName, Pill, RoleBadge, Stat, WhatsAppLink, WhatsAppSubmit, cx } from "@/components/ui";
-import { QuickLog } from "@/components/quick-log";
+import { CallList } from "@/components/call-list";
+import { headers } from "next/headers";
+import { callList } from "@/lib/daily";
 import { readDb } from "@/lib/db";
 import { TASK_KIND_LABELS, translator, type T } from "@/lib/i18n";
 import {
@@ -30,8 +32,10 @@ import type { DB, UiLang, User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage({ searchParams }: { searchParams: Promise<{ sent?: string }> }) {
-  const { sent } = await searchParams;
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ sent?: string; all?: string }> }) {
+  const { sent, all } = await searchParams;
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? (h.get("host")?.startsWith("localhost") ? "http" : "https")}://${h.get("host")}`;
   const user = await requireUser();
   const lang = await getUiLang();
   const t = translator(lang);
@@ -40,14 +44,14 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   return (
     <>
       {notice}
-      {isStaff(user) ? <MyDay db={db} user={user} lang={lang} t={t} /> : <Overview db={db} user={user} lang={lang} t={t} />}
+      {isStaff(user) ? <MyDay db={db} user={user} lang={lang} t={t} origin={origin} showAll={all === "1"} /> : <Overview db={db} user={user} lang={lang} t={t} />}
     </>
   );
 }
 
 type P = { db: DB; user: User; lang: UiLang; t: T };
 
-function MyDay({ db, user, lang, t }: P) {
+function MyDay({ db, user, lang, t, origin, showAll }: P & { origin: string; showAll: boolean }) {
   const now = Date.now();
   const mine = db.beneficiaries.filter((b) => b.assignedTo === user.id && b.stage !== "closed");
   const waiting = mine
@@ -58,10 +62,6 @@ function MyDay({ db, user, lang, t }: P) {
   const worried = learners.filter((x) => x.s.level !== "green").sort((a, c) => c.s.daysSince - a.s.daysSince);
   const today = upcoming(db, mine, now, 1).filter((s) => s.at < now + 24 * HOUR);
   const tasks = taskBuckets(openTasks(db).filter((task) => task.assigneeId === user.id), now);
-  const ids = new Set(mine.map((b) => b.id));
-  const notes = db.notes
-    .filter((n) => n.needsContact && ids.has(n.beneficiaryId) && now - new Date(n.at).getTime() < 7 * DAY)
-    .filter((n) => !db.messages.some((m) => m.beneficiaryId === n.beneficiaryId && m.direction === "out" && m.authorId === user.id && m.kind !== "lesson" && m.at > n.at));
   const introduced = db.beneficiaries.filter((b) => b.introducedBy === user.id);
   const byId = (id: string) => db.beneficiaries.find((b) => b.id === id)!;
 
@@ -85,31 +85,11 @@ function MyDay({ db, user, lang, t }: P) {
         )}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
-        <Card title={t("waitingReply")} icon={MessageCircle} tone={waiting.length ? "warn" : undefined}>
-          {waiting.length ? (
-            <ul className="divide-y divide-border">
-              {waiting.map(({ b, m }) => (
-                <li key={b.id} className="flex items-center gap-3 py-2.5">
-                  <Avatar name={displayName(db, user, b)} size="sm" locked={b.sensitive && displayName(db, user, b) !== b.name} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <PersonName name={displayName(db, user, b)} href={`/beneficiaries/${b.id}`} />
-                      <span className={cx("text-[11px]", now - new Date(m.at).getTime() > 12 * HOUR ? "text-bad" : "text-muted")}>{relTime(m.at, lang, now)}</span>
-                    </div>
-                    <p dir="auto" className="truncate text-xs text-muted">
-                      {m.translation ?? m.text}
-                    </p>
-                  </div>
-                  <WhatsAppLink beneficiaryId={b.id} size="sm" label={t("openChat")} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Empty icon={CheckCircle2}>{t("allCaughtUp")}</Empty>
-          )}
-        </Card>
+      <Card title={t("callList")} icon={PhoneCall} className="mb-5" action={<span className="hidden text-xs text-muted sm:block">{t("callListSub")}</span>}>
+        <CallList items={callList(db, user, now)} ctx={{ db, user, lang, t, origin }} showAll={showAll} />
+      </Card>
 
+      <div className="grid gap-5 lg:grid-cols-2 [&>*]:min-w-0">
         {user.role === "teacher" && (
           <Card title={t("lessonsToday")} icon={BookOpen} action={<Link href="/schedule" className="text-xs text-brand hover:underline">{t("schedule")}</Link>}>
             {today.length ? (
@@ -139,38 +119,10 @@ function MyDay({ db, user, lang, t }: P) {
           </Card>
         )}
 
-        {user.role === "teacher" && (
-          <Card title={t("learnerWarnings")} icon={HeartPulse} tone={worried.length ? "bad" : undefined}>
-            {worried.length ? (
-              <ul className="divide-y divide-border">
-                {worried.map(({ b, s }) => (
-                  <li key={b.id} className="flex items-center gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <PersonName name={displayName(db, user, b)} href={`/beneficiaries/${b.id}`} />
-                        <LevelBadge level={s.level} label={t(s.level)} />
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-muted">
-                        <LessonDots total={s.total} events={s.events} lessonIds={s.lessons.map((l) => l.id)} />
-                        <span>
-                          {t("lastActivity")} {relTime(s.lastActivity, lang, now)}
-                        </span>
-                      </div>
-                    </div>
-                    <WhatsAppLink beneficiaryId={b.id} size="sm" label={t("openChat")} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty icon={CheckCircle2}>{t("allCaughtUp")}</Empty>
-            )}
-          </Card>
-        )}
-
-        <Card title={t("myTasks")} icon={ClipboardList} tone={tasks.overdue.length ? "bad" : undefined}>
-          {tasks.overdue.length + tasks.today.length + tasks.upcoming.length ? (
+        <Card title={t("upcomingTasks")} icon={ClipboardList}>
+          {tasks.upcoming.length ? (
             <ul className="divide-y divide-border">
-              {[...tasks.overdue, ...tasks.today, ...tasks.upcoming].slice(0, 8).map((task) => {
+              {tasks.upcoming.slice(0, 8).map((task) => {
                 const b = byId(task.beneficiaryId);
                 const late = new Date(task.due).getTime() < now;
                 return (
@@ -182,7 +134,10 @@ function MyDay({ db, user, lang, t }: P) {
                       </button>
                     </form>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{task.title}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium">{task.title}</span>
+                        {task.rule && <Pill className="shrink-0">{t("autoTask")}</Pill>}
+                      </div>
                       <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
                         <PersonName name={displayName(db, user, b)} href={`/beneficiaries/${b.id}`} className="text-xs font-normal" />
                         <span>· {TASK_KIND_LABELS[task.kind][lang]}</span>
@@ -190,7 +145,6 @@ function MyDay({ db, user, lang, t }: P) {
                           · <Clock className="size-3" /> {relTime(task.due, lang, now)}
                         </span>
                       </div>
-                      <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} compact />
                     </div>
                     <WhatsAppLink beneficiaryId={b.id} size="sm" context={task.title} />
                   </li>
@@ -201,29 +155,6 @@ function MyDay({ db, user, lang, t }: P) {
             <Empty icon={CheckCircle2}>{t("allCaughtUp")}</Empty>
           )}
         </Card>
-
-        {notes.length > 0 && (
-          <Card title={t("needsContact")} icon={StickyNote} tone="warn">
-            <ul className="divide-y divide-border">
-              {notes.map((n) => {
-                const b = byId(n.beneficiaryId);
-                const author = db.users.find((u) => u.id === n.authorId);
-                return (
-                  <li key={n.id} className="flex items-start gap-3 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <PersonName name={displayName(db, user, b)} href={`/beneficiaries/${b.id}`} />
-                      <p className="mt-0.5 text-sm">{n.text}</p>
-                      <div className="text-[11px] text-muted">
-                        {author?.name} · {relTime(n.at, lang, now)}
-                      </div>
-                    </div>
-                    <WhatsAppLink beneficiaryId={b.id} size="sm" context={n.text} />
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        )}
 
         {user.role === "caller" && introduced.length > 0 && (
           <Card title={t("conversions")} icon={HeartPulse}>

@@ -232,3 +232,75 @@ export function MarkUpdatesSeen({ id }: { id: string }) {
   }, [id, router]);
   return null;
 }
+
+type PhoneOptionProp = { key: string; label: string; text: string; meaning: string; eventId?: string; lessonId?: string };
+
+/**
+ * Opens WhatsApp on the staff member's own phone or computer with the message already written
+ * in the beneficiary's language, and records the message in the file. They press send in WhatsApp.
+ */
+export function SendFromPhone({
+  beneficiaryId,
+  phone,
+  options,
+  action,
+  dir,
+  labels,
+}: {
+  beneficiaryId: string;
+  phone: string;
+  options: PhoneOptionProp[];
+  action: (formData: FormData) => Promise<void>;
+  dir: "ltr" | "rtl";
+  labels: { open: string; hint: string; recorded: string; placeholder: string };
+}) {
+  const [key, setKey] = useState(options[0]?.key ?? "free");
+  const picked = options.find((o) => o.key === key) ?? options[0];
+  const [text, setText] = useState(picked?.text ?? "");
+  const [sent, setSent] = useState(false);
+  return (
+    <form
+      action={async (fd) => {
+        await action(fd);
+        setSent(true);
+      }}
+      className="space-y-2.5"
+    >
+      <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
+      <input type="hidden" name="option" value={picked?.key ?? "free"} />
+      <input type="hidden" name="eventId" value={picked?.eventId ?? ""} />
+      <input type="hidden" name="lessonId" value={picked?.lessonId ?? ""} />
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => {
+              setKey(o.key);
+              setText(o.text);
+              setSent(false);
+            }}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition ${o.key === picked?.key ? "border-wa bg-wa-soft text-wa-strong" : "border-border bg-surface hover:border-wa/40"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <textarea name="text" rows={3} dir={dir} value={text} onChange={(e) => setText(e.target.value)} placeholder={labels.placeholder} className="text-sm" required />
+      {picked?.meaning && <p className="text-xs text-muted">{picked.meaning}</p>}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] text-muted">{sent ? `✓ ${labels.recorded}` : labels.hint}</span>
+        <button
+          type="submit"
+          disabled={!text.trim()}
+          onClick={() => {
+            if (text.trim()) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+          }}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-wa px-4 text-sm font-medium text-white shadow-soft transition hover:bg-wa-strong disabled:opacity-50"
+        >
+          {labels.open}
+        </button>
+      </div>
+    </form>
+  );
+}

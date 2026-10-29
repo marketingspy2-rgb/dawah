@@ -125,8 +125,9 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
               return (
                 <div key={m.id} className={cx("flex", out ? "justify-end" : "justify-start")}>
                   <div className={cx("max-w-[82%] rounded-2xl px-3 py-2 shadow-soft lg:max-w-[70%]", out ? "rounded-ee-md bg-bubble-out" : "rounded-es-md bg-bubble-in")}>
-                    {m.kind === "template" && <div className="mb-0.5 text-[11px] font-medium text-brand">{t("templates")}</div>}
+                    {m.kind === "template" && m.via !== "phone" && <div className="mb-0.5 text-[11px] font-medium text-brand">{t("templates")}</div>}
                     {m.kind === "imported" && <div className="mb-0.5 text-[11px] font-medium text-muted">{t("importChat")}</div>}
+                    {m.via === "phone" && <div className="mb-0.5 text-[11px] font-medium text-muted">{t("sentFromPhone")}</div>}
                     <p dir={langDir(selected.language)} className="text-[15px] whitespace-pre-wrap">
                       {before.trim()}
                     </p>

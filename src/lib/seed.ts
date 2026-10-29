@@ -12,6 +12,7 @@ import type {
   LessonEvent,
   Message,
   Note,
+  Settings,
   Stage,
   StaffRole,
   Task,
@@ -22,7 +23,30 @@ import type {
   Weekday,
 } from "./types";
 
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
+
+export function defaultSettings(): Settings {
+  return {
+    rules: {
+      afterContact: { on: true, contacted: 2, interested: 2, learning: 3 },
+      noAnswer: { on: true, days: 1, tries: 3 },
+      newMuslim: { on: true, days: [1, 3, 7, 14, 30, 60, 90] },
+      silentLearner: { on: true },
+      newCase: { on: true, hours: 4 },
+    },
+    rulesUpdatedAt: null,
+    rulesUpdatedBy: null,
+  };
+}
+
+/** Brings saved demo data from an older version up to date without losing what people entered. */
+export function migrate(db: DB): DB | null {
+  if (db.version === 3) {
+    db.settings = defaultSettings();
+    db.version = 4;
+  }
+  return db.version === DB_VERSION ? db : null;
+}
 
 /** Small deterministic random generator so every reset gives the same demo. */
 function rng(seed: number) {
@@ -455,6 +479,7 @@ export function createSeed(now = new Date()): DB {
     touches,
     imports,
     shares: [],
+    settings: defaultSettings(),
     audit: [],
   };
 }

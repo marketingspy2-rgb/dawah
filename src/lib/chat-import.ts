@@ -128,6 +128,9 @@ export function suggestBeneficiaries(lines: ParsedLine[], list: Beneficiary[]) {
 /** Adds the messages that are not in the file yet, and records the import. Returns how many were new. */
 export function applyImport(db: DB, user: User, b: Beneficiary, lines: ParsedLine[], them: string, source: ChatImport["source"]) {
   const seen = new Set(db.messages.filter((m) => m.beneficiaryId === b.id).map((m) => `${Math.floor(new Date(m.at).getTime() / 60_000)}|${m.text.trim()}`));
+  // Messages sent from the phone through the platform are already in the file, with the time they were opened.
+  const norm = (t: string) => t.replace(/\{link\}|\S*\/l\/ev_\w+/g, "").replace(/\s+/g, " ").trim();
+  const fromPhone = db.messages.filter((m) => m.beneficiaryId === b.id && m.via === "phone").map((m) => ({ at: new Date(m.at).getTime(), text: norm(m.text) }));
   const author = db.users.find((u) => u.id === b.assignedTo) ?? user;
   let added = 0;
   for (const line of lines) {
@@ -135,6 +138,7 @@ export function applyImport(db: DB, user: User, b: Beneficiary, lines: ParsedLin
     if (seen.has(key)) continue;
     seen.add(key);
     const inbound = line.sender === them;
+    if (!inbound && fromPhone.some((p) => Math.abs(p.at - line.at.getTime()) < 60 * 60_000 && p.text === norm(line.text))) continue;
     db.messages.push({
       id: newId("M"),
       beneficiaryId: b.id,

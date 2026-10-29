@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { BookOpen, Check, CheckCircle2, ClipboardList, Eye, FileText, Hand, History, Import, MessageCircle, Sparkles, StickyNote, UserCog, UsersRound } from "lucide-react";
 import { addNote, addTask, changeStage, completeTask, importChat, markSummaryReviewed, moveToGroup, regenerateSummary, sendLessonNow, updateProfile } from "@/app/actions";
 import { PendingButton } from "@/components/client";
+import { PhoneSend } from "@/components/call-list";
 import { QuickLog } from "@/components/quick-log";
 import { LockIcon } from "@/components/icons";
 import { Avatar, Button, Card, Crumbs, Empty, Field, LevelBadge, Notice, Pill, RoleBadge, StageBadge, WhatsAppLink, WhatsAppSubmit, cx } from "@/components/ui";
@@ -26,6 +28,8 @@ export default async function BeneficiaryPage({
   const { imported, noted, unreadable, movedTo, group: movedGroup, sent } = await searchParams;
   const user = await requireUser();
   const lang = await getUiLang();
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? (h.get("host")?.startsWith("localhost") ? "http" : "https")}://${h.get("host")}`;
   const t = translator(lang);
   const found = readDb().beneficiaries.find((x) => x.id === id);
   if (!found || !canOpen(readDb(), user, found)) notFound();
@@ -168,6 +172,9 @@ export default async function BeneficiaryPage({
           {actable && (
             <Card title={t("quickLog")} icon={Hand} action={<span className="hidden text-xs text-muted sm:block">{t("quickLogHint")}</span>}>
               <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} />
+              <div className="mt-4 border-t border-border pt-3">
+                <PhoneSend b={b} ctx={{ db, user, lang, t, origin }} />
+              </div>
             </Card>
           )}
 
