@@ -22,7 +22,7 @@ export function QuickLog({ db, user, beneficiaryId, lang, t, compact }: { db: DB
   const canUndo = last && last.userId === user.id && now - new Date(last.at).getTime() < 10 * 60_000;
 
   return (
-    <div className={cx(compact ? "mt-1.5" : "space-y-3")}>
+    <div className={cx(compact ? "mt-1.5 flex flex-wrap items-center gap-1.5" : "space-y-3")}>
       <div className={cx("flex flex-wrap", compact ? "gap-1.5" : "gap-2")}>
         {kinds.map((kind) => {
           const Icon = ICONS[kind];
@@ -46,6 +46,14 @@ export function QuickLog({ db, user, beneficiaryId, lang, t, compact }: { db: DB
           );
         })}
       </div>
+      {compact && canUndo && (
+        <form action={undoTouch} className="inline-flex">
+          <input type="hidden" name="touchId" value={last.id} />
+          <button className="flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-brand hover:bg-brand-tint">
+            <Undo2 className="size-3.5" /> {t("undoWhat", { what: TOUCH_LABELS[last.kind as TouchKind][lang] })}
+          </button>
+        </form>
+      )}
       {!compact && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
           {last ? t("lastTouch", { what: TOUCH_LABELS[last.kind as TouchKind][lang], when: relTime(last.at, lang, now) }) : t("noTouchYet")}

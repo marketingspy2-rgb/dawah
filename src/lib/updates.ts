@@ -15,6 +15,23 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-10-29-quicklog-undo",
+    date: "2026-10-29",
+    title: { ar: "التراجع من «مهامي» وفهم أدق لمن ينتظر ردك", en: "Undo on “My tasks”, and a clearer “waiting for your reply”" },
+    items: [
+      {
+        kind: "fixed",
+        ar: "إذا ضغطت بالخطأ «محادثة» أو «مكالمة» أو «لم يرد» في «مهامي»، يظهر بجانبها زر «تراجع» لمدة 10 دقائق.",
+        en: "If you tap “Chatted”, “Called” or “No answer” by mistake in “My tasks”, an “Undo” button shows next to it for 10 minutes.",
+      },
+      {
+        kind: "improved",
+        ar: "إذا رددت على المستفيد من جوالك وضغطت «محادثة» أو «مكالمة»، يختفي من «رسائل تنتظر ردك»، لأن المنصة صارت تعرف أنك رددت.",
+        en: "If you answer someone from your phone and tap “Chatted” or “Called”, they leave “Waiting for your reply”, since the platform now knows you answered.",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-personal-whatsapp",
     date: "2026-10-29",
     title: { ar: "متابعة المحادثات التي تتم من الجوالات الشخصية", en: "Following conversations held on personal phones" },

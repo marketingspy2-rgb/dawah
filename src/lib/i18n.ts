@@ -304,6 +304,7 @@ const S = {
   lastTouch: ["آخر تسجيل: {what} {when}", "Last logged: {what} {when}"],
   noTouchYet: ["لم يُسجَّل تواصل بعد.", "No contact logged yet."],
   undo: ["تراجع", "Undo"],
+  undoWhat: ["تراجع عن «{what}»", "Undo “{what}”"],
   shareTitle: ["إضافة محادثة من واتساب", "Add a chat from WhatsApp"],
   shareSub: ["محادثاتك على جوالك تصل إلى ملف المستفيد دون أي ربط بواتساب، فلا خطر على رقمك.", "Chats on your phone reach the beneficiary's file without connecting to WhatsApp, so your number is never at risk."],
   howAndroid: ["أندرويد: الطريقة الأسرع", "Android: the fastest way"],
