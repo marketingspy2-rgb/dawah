@@ -13,7 +13,15 @@ let cache: DB | null = null;
 let cacheRev: number | null = null;
 
 export async function loadDb(): Promise<DB> {
-  const snap = await readSnapshot(cache ? cacheRev : null);
+  let snap: Awaited<ReturnType<typeof readSnapshot>>;
+  try {
+    snap = await readSnapshot(cache ? cacheRev : null);
+  } catch (err) {
+    // Storage is unreachable: keep serving the copy in memory rather than failing the page.
+    console.error("demo storage read failed", err);
+    if (cache) return cache;
+    snap = null;
+  }
   if (snap === "same" && cache) return cache;
   if (snap && snap !== "same") {
     try {
@@ -38,7 +46,12 @@ export function readDb(): DB {
 async function saveDb(db: DB) {
   cache = db;
   cacheRev = (cacheRev ?? 0) + 1;
-  await writeSnapshot({ rev: cacheRev, data: JSON.stringify(db) });
+  try {
+    await writeSnapshot({ rev: cacheRev, data: JSON.stringify(db) });
+  } catch (err) {
+    // The demo keeps working from memory; the change is lost when this instance restarts.
+    console.error("demo storage write failed", err);
+  }
 }
 
 /** Apply a change to the latest data and save it. */
