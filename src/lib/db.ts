@@ -1,6 +1,7 @@
 import "server-only";
 import { readSnapshot, writeSnapshot } from "@/lib/storage";
-import { DB_VERSION, createSeed } from "./seed";
+import { applyRules } from "./rules";
+import { createSeed, migrate } from "./seed";
 import type { DB } from "./types";
 
 /**
@@ -25,8 +26,8 @@ export async function loadDb(): Promise<DB> {
   if (snap === "same" && cache) return cache;
   if (snap && snap !== "same") {
     try {
-      const parsed = JSON.parse(snap.data) as DB;
-      if (parsed.version === DB_VERSION) {
+      const parsed = migrate(JSON.parse(snap.data) as DB);
+      if (parsed) {
         cache = parsed;
         cacheRev = snap.rev;
         return parsed;
@@ -58,6 +59,7 @@ async function saveDb(db: DB) {
 export async function mutate<T>(fn: (db: DB) => T): Promise<T> {
   const db = await loadDb();
   const result = fn(db);
+  applyRules(db);
   await saveDb(db);
   return result;
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Activity, BarChart3, BookOpen, CalendarClock, Home, Inbox, Megaphone, Languages, LogOut, MessagesSquare, Network, RotateCcw, Users, UsersRound } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, Home, Inbox, Megaphone, Languages, LogOut, MessagesSquare, Network, Repeat, RotateCcw, Users, UsersRound } from "lucide-react";
 import { logout, resetDemo, toggleLang } from "@/app/actions";
 import { NavLink } from "@/components/client";
 import { Avatar } from "@/components/ui";
@@ -69,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               { href: "/team", label: t("structure"), icon: i(Network) },
               { href: "/dashboard", label: t("dashboard"), icon: i(BarChart3) },
               { href: "/insights", label: t("insights"), icon: i(Activity) },
+              { href: "/rules", label: t("rules"), icon: i(Repeat) },
             ],
           },
         ]

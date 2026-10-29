@@ -131,8 +131,8 @@ export function conversationInsights(db: DB, list: Beneficiary[], staff: User[],
 
   const kinds = TOUCH_KINDS.map((kind) => ({ kind, n: touches.filter((t) => t.kind === kind).length }));
   const sources = {
-    imported: msgs.filter((m) => m.kind === "imported").length,
-    platform: msgs.filter((m) => m.kind !== "imported").length,
+    imported: msgs.filter((m) => m.kind === "imported" || m.via === "phone").length,
+    platform: msgs.filter((m) => m.kind !== "imported" && m.via !== "phone").length,
     touches: touches.length,
   };
 

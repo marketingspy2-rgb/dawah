@@ -11,6 +11,7 @@ import {
   HOUR,
   buildSummary,
   canAct,
+  endOfToday,
   canManageUser,
   canOpen,
   firstName,
@@ -21,7 +22,7 @@ import {
 } from "@/lib/logic";
 import { applyImport, guessBeneficiarySender, parseWhatsAppExport, stageShare, textFromFile } from "@/lib/chat-import";
 import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
-import type { Beneficiary, DB, Gender, Lang, Lesson, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
+import type { Beneficiary, DB, Gender, Lang, Lesson, Message, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
 import { LANGS, STAGES, TOUCH_KINDS } from "@/lib/types";
 
 function audit(db: DB, user: User | null, action: string, target: string) {
@@ -632,6 +633,52 @@ export async function stagePaste(formData: FormData) {
   redirect(`/share/${id}`);
 }
 
+// ---------- Sending from the staff member's own WhatsApp ----------
+
+/**
+ * Records a message the staff member is sending from their own WhatsApp (the platform opened
+ * WhatsApp with the text ready). A lesson message also creates the lesson link it carries.
+ */
+export async function recordPhoneSend(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("beneficiaryId"));
+  const text = String(formData.get("text") ?? "").trim();
+  const option = String(formData.get("option") ?? "");
+  const eventId = String(formData.get("eventId") ?? "");
+  const lessonId = String(formData.get("lessonId") ?? "");
+  if (!text) return;
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    const now = new Date().toISOString();
+    let stored = text;
+    let kind: Message["kind"] = option === "checkin" || option === "followup" ? "template" : "text";
+    let linkedEvent: string | undefined;
+    if ((option === "lesson" || option === "reminder") && /^ev_[a-z0-9]{10,16}$/.test(eventId) && text.includes(`/l/${eventId}`)) {
+      let event = db.events.find((e) => e.id === eventId);
+      if (!event && option === "lesson" && db.lessons.some((l) => l.id === lessonId)) {
+        event = { id: eventId, beneficiaryId: b.id, lessonId, sentAt: now, sentBy: user.id, remindedAt: null, openedAt: null, completedAt: null, correct: null };
+        db.events.push(event);
+      }
+      if (event && event.beneficiaryId === b.id) {
+        if (option === "reminder") event.remindedAt = now;
+        stored = text.replace(new RegExp(String.raw`\S*/l/${eventId}`), "{link}");
+        kind = "lesson";
+        linkedEvent = event.id;
+      }
+    }
+    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: stored, translation: null, at: now, authorId: user.id, status: null, kind, eventId: linkedEvent, via: "phone" });
+    if (b.stage === "new") {
+      b.stage = "contacted";
+      b.stageHistory.push({ stage: "contacted", at: now });
+    }
+    // Writing to them settles today's follow-ups, as a logged contact does.
+    const eod = endOfToday(new Date());
+    db.tasks.filter((t) => t.beneficiaryId === b.id && !t.doneAt && new Date(t.due).getTime() <= eod).forEach((t) => (t.doneAt = now));
+    audit(db, user, `phone_send:${option}`, b.id);
+  });
+  refresh();
+}
+
 // ---------- Contact log ----------
 
 /**
@@ -652,10 +699,15 @@ export async function logTouch(formData: FormData) {
       b.stageHistory.push({ stage: "contacted", at: now.toISOString() });
       touch.movedStage = true;
     }
-    if (kind === "no_reply" && !db.tasks.some((t) => t.beneficiaryId === b.id && !t.doneAt)) {
-      touch.taskId = newId("TK");
-      db.tasks.push({ id: touch.taskId, beneficiaryId: b.id, assigneeId: b.assignedTo, title: "محاولة تواصل ثانية", kind: "followup", due: new Date(now.getTime() + DAY).toISOString(), createdAt: now.toISOString(), doneAt: null });
+    // Reaching them settles today's follow-ups, and so does a try with no answer when the
+    // "no answer" rule is on to set the next try. The rules then set the next step.
+    if (kind !== "no_reply" || db.settings.rules.noAnswer.on) {
+      const eod = endOfToday(now);
+      const settled = db.tasks.filter((t) => t.beneficiaryId === b.id && !t.doneAt && new Date(t.due).getTime() <= eod);
+      settled.forEach((t) => (t.doneAt = now.toISOString()));
+      if (settled.length) touch.closedTasks = settled.map((t) => t.id);
     }
+    // "No answer" → try again, and a contact → next step: both come from the rules after saving.
     db.touches.push(touch);
     audit(db, user, `touch:${kind}`, b.id);
   });
@@ -676,7 +728,12 @@ export async function undoTouch(formData: FormData) {
       const last = b.stageHistory[b.stageHistory.length - 1];
       if (last?.stage === "contacted" && last.at === t.at) b.stageHistory.pop();
     }
-    if (t.taskId) db.tasks = db.tasks.filter((x) => x.id !== t.taskId || x.doneAt);
+    for (const id of t.closedTasks ?? []) {
+      const task = db.tasks.find((x) => x.id === id);
+      if (task) task.doneAt = null;
+    }
+    // Drop the follow-ups the rules created because of this tap.
+    db.tasks = db.tasks.filter((x) => !(x.beneficiaryId === t.beneficiaryId && x.rule && !x.doneAt && x.createdAt >= t.at));
   });
   refresh();
 }
@@ -729,6 +786,32 @@ export async function setUserStatus(formData: FormData) {
     audit(db, user, `status:${status}`, id);
   });
   refresh();
+}
+
+export async function saveRules(formData: FormData) {
+  const user = await requireUser();
+  if (user.role !== "admin" && user.role !== "supervisor") throw new Error("Not allowed");
+  const on = (k: string) => formData.get(k) === "on";
+  const num = (k: string, min: number, max: number, fallback: number) => {
+    const n = Math.round(Number(formData.get(k)));
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+  };
+  const days = [...new Set(String(formData.get("newMuslimDays") ?? "").split(/[,،\s]+/).map((x) => Math.round(Number(x.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))))).filter((n) => Number.isFinite(n) && n >= 1 && n <= 365))].sort((a, b) => a - b);
+  await mutate((db) => {
+    const r = db.settings.rules;
+    db.settings.rules = {
+      afterContact: { on: on("afterContact"), contacted: num("contacted", 1, 30, r.afterContact.contacted), interested: num("interested", 1, 30, r.afterContact.interested), learning: num("learning", 1, 30, r.afterContact.learning) },
+      noAnswer: { on: on("noAnswer"), days: num("noAnswerDays", 1, 14, r.noAnswer.days), tries: num("noAnswerTries", 2, 10, r.noAnswer.tries) },
+      newMuslim: { on: on("newMuslim"), days: days.length ? days : r.newMuslim.days },
+      silentLearner: { on: on("silentLearner") },
+      newCase: { on: on("newCase"), hours: num("newCaseHours", 1, 72, r.newCase.hours) },
+    };
+    db.settings.rulesUpdatedAt = new Date().toISOString();
+    db.settings.rulesUpdatedBy = user.id;
+    audit(db, user, "rules", "settings");
+  });
+  refresh();
+  redirect("/rules?saved=1");
 }
 
 export async function createGroup(formData: FormData) {

@@ -15,6 +15,35 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-10-29-daily-ops",
+    date: "2026-10-29",
+    title: { ar: "قائمة اتصال يومية، وإرسال من جوالك، ومتابعة تلقائية", en: "A daily call list, sending from your phone, and automatic follow-ups" },
+    items: [
+      {
+        kind: "new",
+        ar: "«قائمة اليوم» أعلى صفحة «يومي»: من تتواصل معه اليوم مرتبًا حسب الأهمية، ولكل شخص سبب واضح (ينتظر ردك، مهمة متأخرة، متعلم منقطع، درس اليوم، شخص جديد، حوار برد). ومن عنده ليل الآن ينزل للأسفل مع الوقت المناسب لمراسلته.",
+        en: "“Today's list” at the top of “My day”: who to reach today, most important first, each with a clear reason (waiting for you, late task, a learner gone quiet, a lesson today, someone new, a conversation going cold). People for whom it is night now go lower, with the time to reach them.",
+        href: "/",
+      },
+      {
+        kind: "new",
+        ar: "زر «أرسل من جوالي» في القائمة وفي ملف كل مستفيد: اختر الرسالة (الدرس القادم، اطمئنان، متابعة، أو نص حر) فتُكتب بلغة المستفيد، ثم تفتح واتساب على جوالك جاهزة للإرسال. الرسالة تُسجّل في ملفه تلقائيًا، فلا حاجة لتصدير المحادثة بعدها.",
+        en: "A “Send from my phone” button in the list and on every file: pick the message (next lesson, check-in, follow-up, or your own text) and it is written in the beneficiary's language, then WhatsApp opens on your phone ready to send. The message is saved in their file, so there is no need to export the chat afterwards.",
+      },
+      {
+        kind: "new",
+        ar: "صفحة «قواعد المتابعة» للإدارة والمشرفين: المنصة تنشئ المهام وحدها بعد كل تواصل، وعند عدم الرد، وفي أيام الاطمئنان على المسلم الجديد، وعند انقطاع المتعلم، وإذا لم يُتواصل مع شخص جديد. يمكن تشغيل كل قاعدة أو إيقافها وتغيير أيامها.",
+        en: "A “Follow-up rules” page for management and supervisors: the platform creates tasks on its own after every contact, when there is no answer, on check-in days for new Muslims, when a learner goes quiet, and when nobody has reached someone new. Each rule can be turned on or off and its days changed.",
+        href: "/rules",
+      },
+      {
+        kind: "improved",
+        ar: "عند تسجيل «محادثة» أو «مكالمة» تُغلق مهام اليوم لنفس الشخص تلقائيًا، و«تراجع» يعيدها كما كانت.",
+        en: "Logging “Chatted” or “Called” now closes that person's tasks for today, and “Undo” puts them back.",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-quicklog-undo",
     date: "2026-10-29",
     title: { ar: "التراجع من «مهامي» وفهم أدق لمن ينتظر ردك", en: "Undo on “My tasks”, and a clearer “waiting for your reply”" },
