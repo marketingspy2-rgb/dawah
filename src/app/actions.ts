@@ -16,13 +16,13 @@ import {
   firstName,
   groupForMember,
   nextScheduled,
-  parseWhatsAppExport,
   suggestAssignee,
   windowOpen,
 } from "@/lib/logic";
-import { LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
-import type { Beneficiary, DB, Gender, Lang, Lesson, Stage, StaffRole, User, Weekday } from "@/lib/types";
-import { LANGS, STAGES } from "@/lib/types";
+import { applyImport, guessBeneficiarySender, parseWhatsAppExport, stageShare, textFromFile } from "@/lib/chat-import";
+import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
+import type { Beneficiary, DB, Gender, Lang, Lesson, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
+import { LANGS, STAGES, TOUCH_KINDS } from "@/lib/types";
 
 function audit(db: DB, user: User | null, action: string, target: string) {
   db.audit.unshift({ id: newId("AU"), userId: user?.id ?? "beneficiary", action, target, at: new Date().toISOString() });
@@ -53,12 +53,16 @@ export async function login(formData: FormData) {
   const id = String(formData.get("userId"));
   const user = (await loadDb()).users.find((u) => u.id === id);
   if (!user) return;
-  (await cookies()).set(USER_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/" });
+  const jar = await cookies();
+  // Stay signed in on the phone, so chats shared from WhatsApp land straight in the platform.
+  jar.set(USER_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
   await mutate((db) => {
     const u = db.users.find((x) => x.id === id)!;
     u.lastSeenAt = new Date().toISOString();
   });
-  redirect("/");
+  const next = jar.get(AFTER_LOGIN_COOKIE)?.value;
+  jar.delete(AFTER_LOGIN_COOKIE);
+  redirect(next?.startsWith("/share/") ? next : "/");
 }
 
 export async function logout() {
@@ -565,27 +569,116 @@ export async function importChat(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
   const file = formData.get("file");
-  const raw = file instanceof File && file.size ? await file.text() : String(formData.get("raw") ?? "");
+  const pasted = String(formData.get("raw") ?? "");
+  const raw = file instanceof File && file.size ? await textFromFile(file) : pasted;
   const lines = parseWhatsAppExport(raw);
-  let added = 0;
-  await mutate((db) => {
+  const added = await mutate((db) => {
     const b = getBeneficiary(db, user, id);
-    const seen = new Set(db.messages.filter((m) => m.beneficiaryId === b.id).map((m) => `${new Date(m.at).getTime()}|${m.text}`));
-    const theirName = b.name.split(" ")[0].toLowerCase();
-    const senders = [...new Set(lines.map((l) => l.sender))];
-    const them = senders.find((s) => s.toLowerCase().includes(theirName)) ?? senders[0];
-    for (const line of lines) {
-      const key = `${line.at.getTime()}|${line.text}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const inbound = line.sender === them;
-      db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: inbound ? "in" : "out", text: line.text, translation: null, at: line.at.toISOString(), authorId: inbound ? null : b.assignedTo, status: inbound ? null : "read", kind: "imported" });
-      added++;
-    }
-    audit(db, user, `import_chat:${added}`, b.id);
+    const them = guessBeneficiarySender(lines, b, db.users.find((u) => u.id === b.assignedTo) ?? null);
+    if (!them) return 0;
+    const n = applyImport(db, user, b, lines, them, file instanceof File && file.size ? "file" : "paste");
+    audit(db, user, `import_chat:${n}`, b.id);
+    return n;
   });
   refresh();
-  redirect(`/beneficiaries/${id}?imported=${added}`);
+  redirect(`/beneficiaries/${id}?imported=${added}${lines.length ? "" : "&unreadable=1"}`);
+}
+
+/** Saves a chat shared from the phone to the file the staff member picked. */
+export async function importShared(formData: FormData) {
+  const user = await requireUser();
+  const shareId = String(formData.get("shareId"));
+  const id = String(formData.get("otherBeneficiaryId") || formData.get("beneficiaryId") || "");
+  const them = String(formData.get("them") ?? "");
+  if (!id) return;
+  const added = await mutate((db) => {
+    const share = db.shares.find((s) => s.id === shareId);
+    if (!share) return null;
+    const b = getBeneficiary(db, user, id);
+    const lines = parseWhatsAppExport(share.text);
+    let n = 0;
+    if (lines.length) {
+      n = applyImport(db, user, b, lines, them || guessBeneficiarySender(lines, b, user) || "", "share");
+    } else {
+      // Plain text without WhatsApp dates: keep it as a note rather than losing it.
+      db.notes.push({ id: newId("N"), beneficiaryId: b.id, authorId: user.id, text: share.text.slice(0, 2000), at: new Date().toISOString(), needsContact: false });
+      n = -1;
+    }
+    db.shares = db.shares.filter((s) => s.id !== shareId);
+    audit(db, user, n < 0 ? "share_as_note" : `import_share:${n}`, b.id);
+    return n;
+  });
+  refresh();
+  if (added === null) redirect("/share");
+  redirect(`/beneficiaries/${id}?${added < 0 ? "noted=1" : `imported=${added}`}`);
+}
+
+export async function discardShare(formData: FormData) {
+  await requireUser();
+  const shareId = String(formData.get("shareId"));
+  await mutate((db) => {
+    db.shares = db.shares.filter((s) => s.id !== shareId);
+  });
+  redirect("/share");
+}
+
+/** Pasted text from the "add a chat" page becomes a share, then follows the same steps. */
+export async function stagePaste(formData: FormData) {
+  const user = await requireUser();
+  const file = formData.get("file");
+  const text = file instanceof File && file.size ? await textFromFile(file) : String(formData.get("raw") ?? "");
+  if (!text.trim()) redirect("/share");
+  const id = await mutate((db) => stageShare(db, text, file instanceof File && file.size ? file.name : null, user.id));
+  redirect(`/share/${id}`);
+}
+
+// ---------- Contact log ----------
+
+/**
+ * One tap after talking to someone outside the platform. A first chat or call moves a new
+ * person to "contacted", and no answer puts a follow-up on tomorrow's list.
+ */
+export async function logTouch(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("beneficiaryId"));
+  const kind = String(formData.get("kind")) as TouchKind;
+  if (!TOUCH_KINDS.includes(kind)) return;
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    const now = new Date();
+    const touch: Touch = { id: newId("TO"), beneficiaryId: b.id, userId: user.id, kind, at: now.toISOString() };
+    if ((kind === "chat" || kind === "call") && b.stage === "new") {
+      b.stage = "contacted";
+      b.stageHistory.push({ stage: "contacted", at: now.toISOString() });
+      touch.movedStage = true;
+    }
+    if (kind === "no_reply" && !db.tasks.some((t) => t.beneficiaryId === b.id && !t.doneAt)) {
+      touch.taskId = newId("TK");
+      db.tasks.push({ id: touch.taskId, beneficiaryId: b.id, assigneeId: b.assignedTo, title: "محاولة تواصل ثانية", kind: "followup", due: new Date(now.getTime() + DAY).toISOString(), createdAt: now.toISOString(), doneAt: null });
+    }
+    db.touches.push(touch);
+    audit(db, user, `touch:${kind}`, b.id);
+  });
+  refresh();
+}
+
+/** Undo the last contact this person recorded, within ten minutes. */
+export async function undoTouch(formData: FormData) {
+  const user = await requireUser();
+  const touchId = String(formData.get("touchId"));
+  await mutate((db) => {
+    const t = db.touches.find((x) => x.id === touchId);
+    if (!t || t.userId !== user.id || Date.now() - new Date(t.at).getTime() > 10 * 60_000) return;
+    db.touches = db.touches.filter((x) => x.id !== touchId);
+    const b = db.beneficiaries.find((x) => x.id === t.beneficiaryId);
+    if (b && t.movedStage && b.stage === "contacted") {
+      b.stage = "new";
+      const last = b.stageHistory[b.stageHistory.length - 1];
+      if (last?.stage === "contacted" && last.at === t.at) b.stageHistory.pop();
+    }
+    if (t.taskId) db.tasks = db.tasks.filter((x) => x.id !== t.taskId || x.doneAt);
+  });
+  refresh();
 }
 
 // ---------- Team ----------

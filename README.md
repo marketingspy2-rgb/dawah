@@ -21,6 +21,9 @@
 - **ملف المستفيد:** رحلته من أول تواصل إلى الثبات، التعلّم، ملخص التسليم، الملاحظات، المهام، سجل الإسناد، واستيراد محادثة قديمة (ملف مثال في `samples/`).
 - **الهيكل والصلاحيات:** شجرة الفرق، ومن يرى ماذا، وتغيير حالة الموظف، ونقل حالات من يغادر أو في إجازة.
 - **المؤشرات:** الدعاة والمعلمون، المشرفون، مسار الدعوة، التعليم، واستخدام المنصة.
+- **الأرقام الشخصية:** لمن يتواصل من جواله الشخصي، دون أي ربط بواتساب: زر «سجّل تواصلك» بضغطة واحدة، وصفحة «إضافة محادثة» تستقبل المحادثة المصدّرة من واتساب (بالمشاركة المباشرة بعد تثبيت المنصة على الجوال، أو برفع الملف، أو بلصق رسائل منسوخة).
+- **إحصائيات التواصل:** المحادثات النشطة، وسرعة الرد، وتجاوب المستفيدين، والمنقطعون، وأنسب أوقات التواصل، ومن تأخر في إضافة محادثاته.
+- **التحديثات:** كل تعديل على المنصة مشروح للمستخدم بلغة بسيطة.
 - **الخصوصية:** الحالات الحساسة تظهر برقم بدل الاسم إلا للمسؤول عنها ومشرفه، وكل فتح للملف مسجّل.
 
 ## التشغيل على جهازك
@@ -76,6 +79,8 @@ npx wrangler deploy    # نشر يدوي (يتطلب wrangler login أو CLOUDFL
 - `src/lib/db.ts` طبقة البيانات الوحيدة. التخزين في `src/lib/storage.ts` (ملف محلي) أو `src/lib/storage.cloudflare.ts` (D1)، ويُختار تلقائيًا حسب طريقة البناء. استبدالها لاحقًا بقاعدة بيانات حقيقية لا يمس الشاشات.
 - `src/lib/seed.ts` يولّد البيانات التجريبية بنفس النتيجة كل مرة، والتواريخ نسبية لوقت التشغيل.
 - `src/lib/logic.ts` قواعد الصلاحيات، والإسناد، ونافذة الـ24 ساعة، وحساب المؤشرات.
+- `src/lib/chat-import.ts` قراءة محادثات واتساب المصدّرة والمنسوخة، و`src/app/api/share` يستقبل المشاركة من الجوال، و`src/lib/insights.ts` إحصائيات التواصل.
+- `src/lib/updates.ts` سجل التحديثات الظاهر للمستخدمين. **أضف مدخلًا في أعلاه مع كل تعديل يلاحظه المستخدم**، بلغة بسيطة وبلا مصطلحات تقنية.
 
 ---
 
@@ -86,3 +91,7 @@ A demo of a multilingual platform for management, supervisors, callers and teach
 **Run locally** (Node.js 22+): `npm install && npm run build && npm start`, then open http://localhost:3000. Reset demo data with `npm run reset`. There are no passwords: pick any user on the login page.
 
 **Cloudflare:** the same app runs on Workers through vinext, with demo data in a D1 database (`dawah-demo`) that is created on first deploy. Connect the repo in the Cloudflare dashboard (Workers & Pages → Create → Import a repository) with build command `npm run build:vinext` and deploy command `npx wrangler deploy`.
+
+**Personal numbers:** staff who talk to people from their own WhatsApp keep the platform up to date without connecting WhatsApp to anything: a one-tap contact log on each file, and an "Add a chat" page that takes an exported chat (shared straight from WhatsApp once the platform is installed on the phone, uploaded, or pasted). "Conversation stats" turns all of it into reply times, answer rates, silent beneficiaries and the best hours to reach people.
+
+**Updates:** `src/lib/updates.ts` feeds the in-app "Updates" page. Add an entry at the top for every change users will notice, in plain words.

@@ -314,45 +314,6 @@ export function buildSummary(db: DB, b: Beneficiary, lang: UiLang) {
   ].filter(Boolean).join("\n");
 }
 
-// ---------- WhatsApp export import ----------
-
-export type ParsedLine = { at: Date; sender: string; text: string };
-
-const LINE_RE = /^‎?\[?(\d{1,4})[/.-](\d{1,2})[/.-](\d{1,4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AaPp]\.?\s?[Mm]\.?)?\]?\s*(?:-\s*)?([^:]{1,60}?):\s([\s\S]*)$/;
-
-/** Parses Android and iPhone "Export chat" text files. */
-export function parseWhatsAppExport(raw: string): ParsedLine[] {
-  const out: ParsedLine[] = [];
-  for (const line of raw.replace(/\r/g, "").split("\n")) {
-    const m = line.match(LINE_RE);
-    if (!m) {
-      if (out.length && line.trim()) out[out.length - 1].text += `\n${line}`;
-      continue;
-    }
-    const [, a, b, c, hh, mm, ss, ampm, sender, text] = m;
-    let year: number, month: number, day: number;
-    if (a.length === 4) {
-      year = +a; month = +b; day = +c;
-    } else {
-      year = +c < 100 ? 2000 + +c : +c;
-      if (+a > 12) { day = +a; month = +b; }
-      else if (+b > 12) { month = +a; day = +b; }
-      else { day = +a; month = +b; }
-    }
-    let hour = +hh;
-    if (ampm) {
-      const pm = /p/i.test(ampm);
-      if (pm && hour < 12) hour += 12;
-      if (!pm && hour === 12) hour = 0;
-    }
-    const at = new Date(year, month - 1, day, hour, +mm, ss ? +ss : 0);
-    if (Number.isNaN(at.getTime())) continue;
-    if (/omitted|محذوف|<Media/i.test(text)) continue;
-    out.push({ at, sender: sender.replace(/^‎/, "").trim(), text: text.trim() });
-  }
-  return out;
-}
-
 // ---------- Metrics ----------
 
 function median(values: number[]) {

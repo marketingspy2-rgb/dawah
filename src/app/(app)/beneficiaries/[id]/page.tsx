@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookOpen, Check, CheckCircle2, ClipboardList, Eye, FileText, History, Import, MessageCircle, Sparkles, StickyNote, UserCog, UsersRound } from "lucide-react";
+import { BookOpen, Check, CheckCircle2, ClipboardList, Eye, FileText, Hand, History, Import, MessageCircle, Sparkles, StickyNote, UserCog, UsersRound } from "lucide-react";
 import { addNote, addTask, changeStage, completeTask, importChat, markSummaryReviewed, moveToGroup, regenerateSummary, sendLessonNow, updateProfile } from "@/app/actions";
 import { PendingButton } from "@/components/client";
+import { QuickLog } from "@/components/quick-log";
 import { LockIcon } from "@/components/icons";
 import { Avatar, Button, Card, Crumbs, Empty, Field, LevelBadge, Notice, Pill, RoleBadge, StageBadge, WhatsAppLink, WhatsAppSubmit, cx } from "@/components/ui";
 import { COUNTRIES } from "@/lib/content";
@@ -19,10 +20,10 @@ export default async function BeneficiaryPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ imported?: string; movedTo?: string; group?: string; sent?: string }>;
+  searchParams: Promise<{ imported?: string; noted?: string; unreadable?: string; movedTo?: string; group?: string; sent?: string }>;
 }) {
   const { id } = await params;
-  const { imported, movedTo, group: movedGroup, sent } = await searchParams;
+  const { imported, noted, unreadable, movedTo, group: movedGroup, sent } = await searchParams;
   const user = await requireUser();
   const lang = await getUiLang();
   const t = translator(lang);
@@ -68,7 +69,8 @@ export default async function BeneficiaryPage({
 
   return (
     <>
-      {imported && <Notice tone="ok">{t("imported", { n: imported })}</Notice>}
+      {noted && <Notice tone="ok">{t("savedAsNote")}</Notice>}
+      {imported && (unreadable ? <Notice tone="warn">{t("unreadable")}</Notice> : <Notice tone="ok">{t("imported", { n: imported })}</Notice>)}
       {movedTo && <Notice tone="ok">{t("movedToTeacher", { name: movedTo, group: movedGroup ?? "" })}</Notice>}
       {sent !== undefined && <Notice tone={sent === "0" ? "warn" : "ok"}>{sent === "0" ? t("nothingHere") : t("sentOk")}</Notice>}
 
@@ -163,6 +165,12 @@ export default async function BeneficiaryPage({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-5">
+          {actable && (
+            <Card title={t("quickLog")} icon={Hand} action={<span className="hidden text-xs text-muted sm:block">{t("quickLogHint")}</span>}>
+              <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} />
+            </Card>
+          )}
+
           {learner && (
             <Card
               title={t("learningProgress")}
@@ -321,8 +329,9 @@ export default async function BeneficiaryPage({
               <form action={importChat} className="space-y-2">
                 <input type="hidden" name="beneficiaryId" value={b.id} />
                 <p className="text-sm text-muted">{t("importHint")}</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <input type="file" name="file" accept=".txt,text/plain" required className="flex-1 text-sm" />
+                <input type="file" name="file" accept=".txt,.zip,text/plain,application/zip" className="w-full text-sm" />
+                <textarea name="raw" rows={3} placeholder={t("importPaste")} className="text-sm" dir="auto" />
+                <div className="flex justify-end">
                   <Button size="sm" variant="secondary">
                     {t("importBtn")}
                   </Button>
@@ -339,7 +348,7 @@ export default async function BeneficiaryPage({
                 <form action={moveToGroup} className="flex items-end gap-2">
                   <input type="hidden" name="beneficiaryId" value={b.id} />
                   <Field label={t("moveToGroup")} className="flex-1">
-                    <select name="groupId" defaultValue={b.groupId ?? ""}>
+                    <select key={b.groupId ?? ""} name="groupId" defaultValue={b.groupId ?? ""}>
                       {!b.groupId && <option value="">—</option>}
                       {ownerGroups.map((g) => (
                         <option key={g.id} value={g.id}>
@@ -355,7 +364,7 @@ export default async function BeneficiaryPage({
                 <form action={changeStage} className="flex items-end gap-2">
                   <input type="hidden" name="beneficiaryId" value={b.id} />
                   <Field label={t("changeStage")} className="flex-1">
-                    <select name="stage" defaultValue={b.stage}>
+                    <select key={b.stage} name="stage" defaultValue={b.stage}>
                       {STAGES.map((s) => (
                         <option key={s} value={s}>
                           {STAGE_LABELS[s][lang]}

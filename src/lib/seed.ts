@@ -4,6 +4,7 @@ import { DAY, HOUR, nextSlot } from "./time";
 import type {
   Assignment,
   Beneficiary,
+  ChatImport,
   DB,
   Gender,
   Group,
@@ -15,11 +16,13 @@ import type {
   StaffRole,
   Task,
   Team,
+  Touch,
+  TouchKind,
   User,
   Weekday,
 } from "./types";
 
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /** Small deterministic random generator so every reset gives the same demo. */
 function rng(seed: number) {
@@ -84,6 +87,9 @@ const SOURCES = ["إعلان فيسبوك", "صفحة المركز", "إحالة
 type StaffSeed = { id: string; name: string; role: StaffRole; gender: Gender; languages: Lang[]; teamId: string; quality: number };
 
 /** Each supervisor leads callers (part one) and teachers (part two). The women's section has its own supervisor. */
+/** Callers and teachers who use their own phone number rather than the center's. */
+export const PERSONAL_NUMBER_STAFF = new Set(["U-C01", "U-C04", "U-C06", "U-C08", "U-C10", "U-C03", "U-C11"]);
+
 const STAFF: StaffSeed[] = [
   // Team 1: Spanish and French, brothers
   { id: "U-C01", name: "Ibrahim Garcia", role: "caller", gender: "m", languages: ["es"], teamId: "T1", quality: 0.6 },
@@ -404,6 +410,34 @@ export function createSeed(now = new Date()): DB {
   messages.sort((a, b) => a.at.localeCompare(b.at));
   const seededAt = now.toISOString();
 
+  // Callers who work from their personal WhatsApp: their conversations reach the platform
+  // as exported chats, plus the one-tap contact log.
+  const touches: Touch[] = [];
+  const imports: ChatImport[] = [];
+  const kinds: TouchKind[] = ["chat", "chat", "chat", "call", "no_reply", "question", "lesson"];
+  for (const s of STAFF) {
+    const personal = PERSONAL_NUMBER_STAFF.has(s.id);
+    const theirs = beneficiaries.filter((b) => b.assignedTo === s.id && b.stage !== "closed");
+    // How long ago this person last brought their chats in: one caller has fallen behind.
+    const lastSync = s.id === "U-C10" ? 12 * DAY : between(0.3, 4) * DAY;
+    for (const b of theirs) {
+      const n = Math.round(between(0, 9) / s.quality);
+      for (let i = 0; i < n; i++) {
+        const kind = b.stage === "muslim" ? pick(["chat", "call", "lesson", "lesson", "question", "no_reply"] as TouchKind[]) : pick(kinds);
+        touches.push({ id: nextId("TO"), beneficiaryId: b.id, userId: s.id, kind, at: iso(nowMs - between(0.05, 30) * DAY) });
+      }
+      if (!personal) continue;
+      let added = 0;
+      for (const m of messages) {
+        if (m.beneficiaryId !== b.id || m.kind !== "text" || nowMs - new Date(m.at).getTime() < lastSync) continue;
+        m.kind = "imported";
+        added++;
+      }
+      if (added) imports.push({ id: nextId("IM"), beneficiaryId: b.id, userId: s.id, source: r() < 0.6 ? "share" : "file", added, at: iso(nowMs - lastSync - between(0, 0.5) * DAY) });
+    }
+  }
+  touches.sort((a, b) => a.at.localeCompare(b.at));
+
   return {
     version: DB_VERSION,
     seededAt,
@@ -418,6 +452,9 @@ export function createSeed(now = new Date()): DB {
     lessons: SEED_LESSONS.map((l) => ({ ...l, updatedAt: iso(nowMs - 20 * DAY), updatedBy: "U-S01" })),
     events,
     assignments,
+    touches,
+    imports,
+    shares: [],
     audit: [],
   };
 }
