@@ -172,6 +172,44 @@ export type Assignment = {
   at: string;
 };
 
+/**
+ * A contact the staff member records with one tap. It covers conversations that happen
+ * outside the platform, such as on a caller's personal WhatsApp or a voice call.
+ */
+export type TouchKind = "chat" | "call" | "no_reply" | "question" | "lesson";
+export const TOUCH_KINDS: TouchKind[] = ["chat", "call", "no_reply", "question", "lesson"];
+
+export type Touch = {
+  id: string;
+  beneficiaryId: string;
+  userId: string;
+  kind: TouchKind;
+  at: string;
+  /** What the tap changed on its own, so "undo" can put it back. */
+  movedStage?: boolean;
+  taskId?: string;
+};
+
+/** One upload of WhatsApp messages into a file: an exported chat, a share or a paste. */
+export type ChatImport = {
+  id: string;
+  beneficiaryId: string;
+  userId: string;
+  source: "file" | "share" | "paste";
+  added: number;
+  at: string;
+};
+
+/** Text or a chat export shared from the phone, waiting for the staff member to pick the beneficiary. */
+export type PendingShare = {
+  /** Random, since the phone sends the share before the platform knows who is signed in. */
+  id: string;
+  userId: string | null;
+  text: string;
+  fileName: string | null;
+  at: string;
+};
+
 export type AuditEntry = {
   id: string;
   userId: string;
@@ -194,5 +232,8 @@ export type DB = {
   lessons: Lesson[];
   events: LessonEvent[];
   assignments: Assignment[];
+  touches: Touch[];
+  imports: ChatImport[];
+  shares: PendingShare[];
   audit: AuditEntry[];
 };

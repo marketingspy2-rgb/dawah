@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { BarChart3, BookOpen, CalendarClock, Home, Languages, LogOut, MessagesSquare, Network, RotateCcw, Users, UsersRound } from "lucide-react";
+import { cookies } from "next/headers";
+import { Activity, BarChart3, BookOpen, CalendarClock, Home, Inbox, Megaphone, Languages, LogOut, MessagesSquare, Network, RotateCcw, Users, UsersRound } from "lucide-react";
 import { logout, resetDemo, toggleLang } from "@/app/actions";
 import { NavLink } from "@/components/client";
 import { Avatar } from "@/components/ui";
@@ -7,10 +8,11 @@ import { mutate, readDb } from "@/lib/db";
 import { roleLabel, translator } from "@/lib/i18n";
 import { HOUR, awaitingReply, isStaff, openTasks, teamOf, upcoming, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
+import { LATEST_UPDATE } from "@/lib/updates";
 
 export const dynamic = "force-dynamic";
 
-type Item = { href: string; label: string; icon: React.ReactNode; badge?: number };
+type Item = { href: string; label: string; icon: React.ReactNode; badge?: number; dot?: boolean };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -30,6 +32,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const mine = visibleBeneficiaries(db, user).filter((b) => user.role !== "caller" || b.assignedTo === user.id);
   const waiting = mine.filter((b) => awaitingReply(db, b)).length;
   const overdue = openTasks(db).filter((task) => task.assigneeId === user.id && new Date(task.due).getTime() < now).length;
+  const unseenUpdate = (await cookies()).get("dawah_seen_update")?.value !== LATEST_UPDATE;
+  const pendingShares = db.shares.filter((s) => s.userId === user.id).length;
   const lessonsSoon = upcoming(db, mine, now, 1).filter((s) => s.at < now + 24 * HOUR).length;
 
   const i = (Icon: typeof Home) => <Icon strokeWidth={1.9} />;
@@ -42,6 +46,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         { href: "/chats", label: t("chats"), icon: i(MessagesSquare), badge: waiting },
         { href: "/groups", label: staff ? t("myGroups") : t("groups"), icon: i(UsersRound) },
         { href: "/beneficiaries", label: t("beneficiaries"), icon: i(Users) },
+        { href: "/share", label: t("addChat"), icon: i(Inbox), badge: pendingShares || undefined },
+        ...(staff ? [{ href: "/insights", label: t("insights"), icon: i(Activity) }] : []),
       ],
     },
     ...(user.role !== "caller"
@@ -62,10 +68,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             items: [
               { href: "/team", label: t("structure"), icon: i(Network) },
               { href: "/dashboard", label: t("dashboard"), icon: i(BarChart3) },
+              { href: "/insights", label: t("insights"), icon: i(Activity) },
             ],
           },
         ]
       : []),
+    { label: t("navAbout"), items: [{ href: "/updates", label: t("updates"), icon: i(Megaphone), dot: unseenUpdate }] },
   ];
   const team = teamOf(db, user);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Loader2 } from "lucide-react";
@@ -55,7 +55,7 @@ export function Composer({ placeholder, disabled, sendLabel, dir }: { placeholde
 }
 
 /** Icons are passed as rendered elements, since components can't cross to the client. */
-export function NavLink({ href, label, badge, icon, tone = "dark" }: { href: string; label: string; badge?: number; icon: React.ReactNode; tone?: "dark" | "light" }) {
+export function NavLink({ href, label, badge, dot, icon, tone = "dark" }: { href: string; label: string; badge?: number; dot?: boolean; icon: React.ReactNode; tone?: "dark" | "light" }) {
   const pathname = usePathname();
   const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
   const dark = tone === "dark";
@@ -76,6 +76,7 @@ export function NavLink({ href, label, badge, icon, tone = "dark" }: { href: str
     >
       <span className={`grid size-[18px] shrink-0 place-items-center [&>svg]:size-[18px] ${dark && !active ? "opacity-70 group-hover:opacity-100" : ""}`}>{icon}</span>
       <span className="flex-1">{label}</span>
+      {dot && !active && <span className="size-2 rounded-full bg-gold" aria-hidden />}
       {!!badge && <span className={`num min-w-5 rounded-full px-1.5 text-center text-[11px] leading-5 font-semibold ${active && !dark ? "bg-white/25 text-white" : "bg-gold text-white"}`}>{badge}</span>}
     </Link>
   );
@@ -170,4 +171,64 @@ export function VoicePlayer({ text, speechLang, seconds, label, playingLabel }: 
       </span>
     </button>
   );
+}
+
+/** Registers the service worker that makes the platform installable. */
+export function RegisterServiceWorker() {
+  useEffect(() => {
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
+  return null;
+}
+
+type InstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+
+/**
+ * Installs the platform on the phone's home screen when the browser allows it, so it shows up
+ * in WhatsApp's share menu. Shows "installed" when already opened from the home screen.
+ */
+export function InstallButton({ label, installedLabel, className }: { label: string; installedLabel: string; className?: string }) {
+  const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    setInstalled(window.matchMedia("(display-mode: standalone)").matches);
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setPrompt(e as InstallPrompt);
+    };
+    const onInstalled = () => setInstalled(true);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  if (installed) return <span className="text-sm font-medium text-ok">✓ {installedLabel}</span>;
+  if (!prompt) return null;
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={async () => {
+        await prompt.prompt();
+        const { outcome } = await prompt.userChoice;
+        if (outcome === "accepted") setInstalled(true);
+        setPrompt(null);
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Remembers that this person has seen the latest update, so the menu stops marking it as new. */
+export function MarkUpdatesSeen({ id }: { id: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    if (document.cookie.includes(`dawah_seen_update=${id}`)) return;
+    document.cookie = `dawah_seen_update=${id}; path=/; max-age=${365 * 86_400}; samesite=lax`;
+    router.refresh();
+  }, [id, router]);
+  return null;
 }

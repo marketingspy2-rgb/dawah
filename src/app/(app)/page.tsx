@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, BellRing, BookOpen, CalendarClock, CheckCircle2, ClipboardList, Clock, HeartPulse, MessageCircle, StickyNote, Users } from "lucide-react";
 import { completeTask, sendLessonNow } from "@/app/actions";
 import { Avatar, Bar, Card, Empty, LessonDots, LevelBadge, Notice, PageHeader, PersonName, Pill, RoleBadge, Stat, WhatsAppLink, WhatsAppSubmit, cx } from "@/components/ui";
+import { QuickLog } from "@/components/quick-log";
 import { readDb } from "@/lib/db";
 import { TASK_KIND_LABELS, translator, type T } from "@/lib/i18n";
 import {
@@ -189,6 +190,7 @@ function MyDay({ db, user, lang, t }: P) {
                           · <Clock className="size-3" /> {relTime(task.due, lang, now)}
                         </span>
                       </div>
+                      <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} compact />
                     </div>
                     <WhatsAppLink beneficiaryId={b.id} size="sm" context={task.title} />
                   </li>

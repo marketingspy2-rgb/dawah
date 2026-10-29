@@ -6,6 +6,8 @@ import type { UiLang, User } from "./types";
 
 export const USER_COOKIE = "dawah_user";
 export const LANG_COOKIE = "dawah_lang";
+/** Where to go after signing in, set when a share arrives before the person has signed in. */
+export const AFTER_LOGIN_COOKIE = "dawah_next";
 
 export async function getUiLang(): Promise<UiLang> {
   const value = (await cookies()).get(LANG_COOKIE)?.value;

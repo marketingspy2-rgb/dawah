@@ -32,6 +32,9 @@
   --gold: #a87a2c;
   --gold-soft: #f6ecd9;
 
+  /* Chart series, checked for colour-blind separation and contrast on white. */
+  --series-out: #1a8a72;
+  --series-in: #c08a2e;
   --night: #0c332c;
   --night-2: #12443b;
   --night-text: #cfe1da;
@@ -79,6 +82,8 @@
   --color-brand-tint: var(--brand-tint);
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
+  --color-series-out: var(--series-out);
+  --color-series-in: var(--series-in);
   --color-night: var(--night);
   --color-night-2: var(--night-2);
   --color-night-text: var(--night-text);
