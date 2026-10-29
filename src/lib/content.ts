@@ -1,4 +1,4 @@
-import type { Lang, Lesson } from "./types";
+import type { Lang } from "./types";
 
 export type Country = { code: string; ar: string; en: string; tz: string; dial: string; lang: Lang };
 
@@ -25,7 +25,7 @@ export function guessCountryFromPhone(phone: string): Country | undefined {
   return [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find((c) => clean.startsWith(c.dial));
 }
 
-export type TemplateId = "lesson_ready" | "checkin" | "new_caller" | "followup";
+export type TemplateId = "lesson_ready" | "lesson_reminder" | "checkin" | "new_caller" | "followup";
 
 /**
  * Message templates approved with Meta. Wording stays neutral on purpose:
@@ -33,14 +33,24 @@ export type TemplateId = "lesson_ready" | "checkin" | "new_caller" | "followup";
  */
 export const TEMPLATES: Record<TemplateId, { ar: string; en: string } & Record<Lang, string>> = {
   lesson_ready: {
-    ar: "مرحبًا {name}، درسك الجديد جاهز. اضغط «ابدأ» عندما يكون لديك بضع دقائق.",
-    en: "Hello {name}, your new lesson is ready. Tap “Start” when you have a few minutes.",
-    es: "Hola {name}, tu nueva lección está lista. Pulsa «Empezar» cuando tengas unos minutos.",
-    fil: "Kumusta {name}, handa na ang bago mong aralin. Pindutin ang «Simulan» kapag may ilang minuto ka.",
-    ur: "ہیلو {name}، آپ کا نیا سبق تیار ہے۔ جب آپ کے پاس چند منٹ ہوں تو «شروع کریں» دبائیں۔",
-    bn: "হ্যালো {name}, আপনার নতুন পাঠ প্রস্তুত। কয়েক মিনিট সময় পেলে «শুরু করুন» চাপুন।",
-    hi: "नमस्ते {name}, आपका नया पाठ तैयार है। जब कुछ मिनट हों तो «शुरू करें» दबाएँ।",
-    fr: "Bonjour {name}, votre nouvelle leçon est prête. Appuyez sur « Commencer » quand vous avez quelques minutes.",
+    ar: "مرحبًا {name}، درسك الجديد «{title}» جاهز. اضغط الرابط عندما يكون لديك بضع دقائق:\n{link}",
+    en: "Hello {name}, your new lesson “{title}” is ready. Tap the link when you have a few minutes:\n{link}",
+    es: "Hola {name}, tu nueva lección «{title}» está lista. Pulsa el enlace cuando tengas unos minutos:\n{link}",
+    fil: "Kumusta {name}, handa na ang bago mong aralin na «{title}». Pindutin ang link kapag may ilang minuto ka:\n{link}",
+    ur: "ہیلو {name}، آپ کا نیا سبق «{title}» تیار ہے۔ جب آپ کے پاس چند منٹ ہوں تو لنک دبائیں:\n{link}",
+    bn: "হ্যালো {name}, আপনার নতুন পাঠ «{title}» প্রস্তুত। কয়েক মিনিট সময় পেলে লিংকে চাপুন:\n{link}",
+    hi: "नमस्ते {name}, आपका नया पाठ «{title}» तैयार है। जब कुछ मिनट हों तो लिंक दबाएँ:\n{link}",
+    fr: "Bonjour {name}, votre nouvelle leçon « {title} » est prête. Appuyez sur le lien quand vous avez quelques minutes :\n{link}",
+  },
+  lesson_reminder: {
+    ar: "مرحبًا {name}، درس «{title}» ما زال ينتظرك، وهو قصير. خذ وقتك:\n{link}",
+    en: "Hello {name}, the lesson “{title}” is still waiting for you, and it is short. Take your time:\n{link}",
+    es: "Hola {name}, la lección «{title}» todavía te espera, y es corta. Tómate tu tiempo:\n{link}",
+    fil: "Kumusta {name}, naghihintay pa rin sa iyo ang araling «{title}», at maikli lang ito. Huwag magmadali:\n{link}",
+    ur: "ہیلو {name}، سبق «{title}» ابھی آپ کا انتظار کر رہا ہے، اور یہ مختصر ہے۔ آرام سے:\n{link}",
+    bn: "হ্যালো {name}, «{title}» পাঠটি এখনো আপনার অপেক্ষায়, আর এটি ছোট। সময় নিয়ে দেখুন:\n{link}",
+    hi: "नमस्ते {name}, पाठ «{title}» अभी भी आपका इंतज़ार कर रहा है, और यह छोटा है। आराम से:\n{link}",
+    fr: "Bonjour {name}, la leçon « {title} » vous attend toujours, et elle est courte. Prenez votre temps :\n{link}",
   },
   checkin: {
     ar: "مرحبًا {name}، كيف حالك؟ نحن هنا إذا احتجت أي شيء.",
@@ -176,21 +186,4 @@ export const CALLER_LINES: Line[] = [
     hi: "पिछले पाठ के बारे में कोई सवाल है?",
     fr: "Avez-vous une question sur la dernière leçon ?",
   },
-];
-
-/**
- * Placeholder curriculum. The center's approved curriculum replaces these
- * titles and adds the lesson text and audio in each language.
- */
-export const LESSONS: Lesson[] = [
-  { id: "L1", order: 1, title: { ar: "الشهادتان ومعناهما", en: "The Shahada and its meaning" }, question: { ar: "ما معنى «لا إله إلا الله»؟", en: "What does “there is no god but Allah” mean?" } },
-  { id: "L2", order: 2, title: { ar: "الطهارة والوضوء", en: "Purification and wudu" }, question: { ar: "متى يجب الوضوء؟", en: "When is wudu required?" } },
-  { id: "L3", order: 3, title: { ar: "الصلاة: أوقاتها وعددها", en: "Prayer: its times and number" }, question: { ar: "كم صلاة مفروضة في اليوم؟", en: "How many obligatory prayers are there each day?" } },
-  { id: "L4", order: 4, title: { ar: "الصلاة: كيف أصلي", en: "Prayer: how to pray" }, question: { ar: "كم ركعة في صلاة الفجر؟", en: "How many units does the Fajr prayer have?" } },
-  { id: "L5", order: 5, title: { ar: "سورة الفاتحة", en: "Surah Al-Fatiha" }, question: { ar: "متى نقرأ الفاتحة؟", en: "When do we recite Al-Fatiha?" } },
-  { id: "L6", order: 6, title: { ar: "أركان الإيمان", en: "The pillars of faith" }, question: { ar: "كم عدد أركان الإيمان؟", en: "How many pillars of faith are there?" } },
-  { id: "L7", order: 7, title: { ar: "الصيام ورمضان", en: "Fasting and Ramadan" }, question: { ar: "من الفجر إلى متى نصوم؟", en: "We fast from dawn until when?" } },
-  { id: "L8", order: 8, title: { ar: "الزكاة والصدقة", en: "Zakat and charity" }, question: { ar: "ما الفرق بين الزكاة والصدقة؟", en: "What is the difference between zakat and charity?" } },
-  { id: "L9", order: 9, title: { ar: "الأخلاق والتعامل مع الأسرة", en: "Character and family" }, question: { ar: "كيف أتعامل مع أسرتي غير المسلمة؟", en: "How should I treat my non-Muslim family?" } },
-  { id: "L10", order: 10, title: { ar: "الثبات والمجتمع", en: "Staying steady and finding community" }, question: { ar: "أين أجد مسجدًا قريبًا؟", en: "Where can I find a nearby mosque?" } },
 ];
