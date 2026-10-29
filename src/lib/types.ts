@@ -1,4 +1,13 @@
-export type Role = "admin" | "supervisor" | "caller";
+/**
+ * Who does what:
+ * - admin: the whole center.
+ * - supervisor: one team of callers and teachers, and every file they hold.
+ * - caller (داعية): part one, inviting people to Islam.
+ * - teacher (معلم): part two, teaching and following up new Muslims.
+ * Beneficiaries never log in: they use WhatsApp and a one-page lesson link.
+ */
+export type Role = "admin" | "supervisor" | "caller" | "teacher";
+export type StaffRole = "caller" | "teacher";
 export type Gender = "m" | "f";
 export type UiLang = "ar" | "en";
 
@@ -24,10 +33,30 @@ export type User = {
 
 export type Team = { id: string; name: string; supervisorId: string };
 
+/** 0 = Sunday … 6 = Saturday, in the learner's own time zone. */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type Group = {
+  id: string;
+  name: string;
+  ownerId: string;
+  kind: "dawah" | "learning";
+  language: Lang;
+  /** Learning groups follow one track of lessons. */
+  trackId: string | null;
+  schedule: {
+    days: Weekday[];
+    /** Local hour for every member, or null to use each member's preferred hour. */
+    hour: number | null;
+    paused: boolean;
+  };
+  createdAt: string;
+};
+
 export type Beneficiary = {
   id: string;
   name: string;
-  /** Shown instead of the name to anyone but the assigned caller and supervisor when sensitive. */
+  /** Shown instead of the name to anyone but the assigned person and their supervisor when sensitive. */
   alias: string;
   gender: Gender;
   language: Lang;
@@ -39,6 +68,9 @@ export type Beneficiary = {
   stage: Stage;
   stageHistory: { stage: Stage; at: string }[];
   assignedTo: string;
+  /** The caller who brought them to Islam keeps read access after the handover to a teacher. */
+  introducedBy: string | null;
+  groupId: string | null;
   sensitive: boolean;
   background: string;
   needs: string;
@@ -57,12 +89,14 @@ export type Message = {
   beneficiaryId: string;
   direction: "in" | "out";
   text: string;
-  /** Arabic translation shown under the bubble for the caller. */
+  /** Arabic translation shown under the bubble for staff. */
   translation: string | null;
   at: string;
   authorId: string | null;
   status: "sent" | "delivered" | "read" | null;
   kind: MessageKind;
+  /** Lesson link carried by a lesson message. */
+  eventId?: string;
 };
 
 export type Note = {
@@ -87,24 +121,45 @@ export type Task = {
   doneAt: string | null;
 };
 
+/** Text in Arabic and English for staff, plus each beneficiary language. */
+export type Multi = { ar: string; en: string } & Partial<Record<Lang, string>>;
+
+export type Track = {
+  id: string;
+  title: { ar: string; en: string };
+  description: { ar: string; en: string };
+};
+
 export type Lesson = {
   id: string;
+  trackId: string;
   order: number;
-  title: { ar: string; en: string };
-  question: { ar: string; en: string };
+  status: "ready" | "draft";
+  title: Multi;
+  /** The one idea of the lesson, in a sentence or two. */
+  point: Multi;
+  /** A true-or-false statement: two big buttons, nothing to type. */
+  question: Multi;
+  answer: boolean;
+  /** One small thing to do today. */
+  practice: Multi;
+  /** Length of the voice note in seconds (0 = none yet). */
+  audioSec: number;
+  updatedAt: string;
+  updatedBy: string;
 };
 
 export type LessonEvent = {
-  lesson: number;
+  /** Also the hard-to-guess link token sent to the learner. */
+  id: string;
+  beneficiaryId: string;
+  lessonId: string;
   sentAt: string;
-  startedAt: string | null;
+  sentBy: string | null;
+  remindedAt: string | null;
+  openedAt: string | null;
   completedAt: string | null;
   correct: boolean | null;
-};
-
-export type Progress = {
-  beneficiaryId: string;
-  events: LessonEvent[];
 };
 
 export type Assignment = {
@@ -130,12 +185,14 @@ export type DB = {
   seededAt: string;
   users: User[];
   teams: Team[];
+  groups: Group[];
   beneficiaries: Beneficiary[];
   messages: Message[];
   notes: Note[];
   tasks: Task[];
+  tracks: Track[];
   lessons: Lesson[];
-  progress: Progress[];
+  events: LessonEvent[];
   assignments: Assignment[];
   audit: AuditEntry[];
 };

@@ -1,40 +1,50 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BENEFICIARY_LINES, TEMPLATES, fillTemplate, guessCountryFromPhone, type TemplateId } from "@/lib/content";
+import { missingLanguages } from "@/lib/curriculum";
 import { loadDb, mutate, newId, readDb, resetDb } from "@/lib/db";
 import {
   DAY,
   HOUR,
   buildSummary,
+  canAct,
+  canManageUser,
   canOpen,
   firstName,
-  learnerState,
+  groupForMember,
+  nextScheduled,
   parseWhatsAppExport,
   suggestAssignee,
-  supervisorIdFor,
   windowOpen,
 } from "@/lib/logic";
 import { LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
-import type { Beneficiary, DB, Gender, Lang, Stage, User } from "@/lib/types";
+import type { Beneficiary, DB, Gender, Lang, Lesson, Stage, StaffRole, User, Weekday } from "@/lib/types";
 import { LANGS, STAGES } from "@/lib/types";
 
-function audit(db: DB, user: User, action: string, target: string) {
-  db.audit.unshift({ id: newId("AU"), userId: user.id, action, target, at: new Date().toISOString() });
+function audit(db: DB, user: User | null, action: string, target: string) {
+  db.audit.unshift({ id: newId("AU"), userId: user?.id ?? "beneficiary", action, target, at: new Date().toISOString() });
   db.audit.length = Math.min(db.audit.length, 500);
 }
 
-function getBeneficiary(db: DB, user: User, id: string): Beneficiary {
+function getBeneficiary(db: DB, user: User, id: string, write = true): Beneficiary {
   const b = db.beneficiaries.find((x) => x.id === id);
-  if (!b || !canOpen(db, user, b)) throw new Error("Not allowed");
+  if (!b || !canOpen(db, user, b) || (write && !canAct(db, user, b))) throw new Error("Not allowed");
   return b;
 }
 
-function refresh(id?: string) {
+function refresh() {
   revalidatePath("/", "layout");
-  if (id) revalidatePath(`/beneficiaries/${id}`);
+}
+
+/** Back to the page the action came from, with a notice in the URL. */
+async function backWith(params: Record<string, string | number>, fallback = "/") {
+  const ref = (await headers()).get("referer");
+  const url = new URL(ref ?? fallback, "http://local");
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+  redirect(`${url.pathname}?${url.searchParams.toString()}`);
 }
 
 // ---------- Session ----------
@@ -48,7 +58,7 @@ export async function login(formData: FormData) {
     const u = db.users.find((x) => x.id === id)!;
     u.lastSeenAt = new Date().toISOString();
   });
-  redirect(user.role === "admin" ? "/dashboard" : "/");
+  redirect("/");
 }
 
 export async function logout() {
@@ -67,6 +77,7 @@ export async function resetDemo() {
   if (user.role !== "admin") return;
   await resetDb();
   refresh();
+  redirect("/");
 }
 
 // ---------- Messaging ----------
@@ -82,7 +93,7 @@ export async function sendMessage(formData: FormData) {
     db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text, translation: null, at: new Date().toISOString(), authorId: user.id, status: "sent", kind: "text" });
     audit(db, user, "send_message", b.id);
   });
-  refresh(id);
+  refresh();
 }
 
 export async function sendTemplate(formData: FormData) {
@@ -90,7 +101,7 @@ export async function sendTemplate(formData: FormData) {
   const id = String(formData.get("beneficiaryId"));
   const templateId = String(formData.get("templateId")) as TemplateId;
   const tpl = TEMPLATES[templateId];
-  if (!tpl) return;
+  if (!tpl || templateId.startsWith("lesson")) return;
   await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     const vars = { name: firstName(b), caller: user.name.split(" ")[0] };
@@ -107,7 +118,7 @@ export async function sendTemplate(formData: FormData) {
     });
     audit(db, user, `send_template:${templateId}`, b.id);
   });
-  refresh(id);
+  refresh();
 }
 
 /** Demo only: plays the beneficiary's side of the conversation. */
@@ -122,7 +133,236 @@ export async function simulateReply(formData: FormData) {
     });
     db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "in", text: line[b.language], translation: line.ar, at: new Date().toISOString(), authorId: null, status: null, kind: "text" });
   });
-  refresh(id);
+  refresh();
+}
+
+// ---------- Lessons on WhatsApp ----------
+
+/** Sends the learner's next item now: their next lesson, or a reminder for the one still open. */
+function sendNext(db: DB, user: User, b: Beneficiary): boolean {
+  const item = nextScheduled(db, b, Date.now() - 30 * DAY);
+  if (!item) return false;
+  const now = new Date().toISOString();
+  const lesson = item.lesson;
+  const vars = { name: firstName(b), title: lesson.title[b.language] ?? lesson.title.en, link: "{link}" };
+  if (item.kind === "reminder" && item.event) {
+    const tpl = TEMPLATES.lesson_reminder;
+    item.event.remindedAt = now;
+    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, { ...vars, title: lesson.title.ar }), at: now, authorId: user.id, status: "sent", kind: "lesson", eventId: item.event.id });
+    audit(db, user, "send_reminder", b.id);
+    return true;
+  }
+  const eventId = `ev_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  db.events.push({ id: eventId, beneficiaryId: b.id, lessonId: lesson.id, sentAt: now, sentBy: user.id, remindedAt: null, openedAt: null, completedAt: null, correct: null });
+  const tpl = TEMPLATES.lesson_ready;
+  db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, { ...vars, title: lesson.title.ar }), at: now, authorId: user.id, status: "sent", kind: "lesson", eventId });
+  audit(db, user, `send_lesson:${lesson.id}`, b.id);
+  return true;
+}
+
+export async function sendLessonNow(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("beneficiaryId"));
+  let sent = 0;
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (sendNext(db, user, b)) sent = 1;
+  });
+  refresh();
+  await backWith({ sent });
+}
+
+export async function sendGroupNow(formData: FormData) {
+  const user = await requireUser();
+  const groupId = String(formData.get("groupId"));
+  let sent = 0;
+  await mutate((db) => {
+    const group = db.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    for (const b of db.beneficiaries.filter((x) => x.groupId === groupId)) {
+      if (!canOpen(db, user, b) || !canAct(db, user, b)) continue;
+      if (sendNext(db, user, b)) sent++;
+    }
+  });
+  refresh();
+  await backWith({ sent });
+}
+
+/** Sends one specific lesson from the library to one learner. */
+export async function sendSpecificLesson(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("beneficiaryId"));
+  const lessonId = String(formData.get("lessonId"));
+  let sent = 0;
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    const lesson = db.lessons.find((l) => l.id === lessonId && l.status === "ready");
+    if (!lesson) return;
+    const now = new Date().toISOString();
+    const eventId = `ev_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+    db.events.push({ id: eventId, beneficiaryId: b.id, lessonId, sentAt: now, sentBy: user.id, remindedAt: null, openedAt: null, completedAt: null, correct: null });
+    const tpl = TEMPLATES.lesson_ready;
+    const vars = { name: firstName(b), title: lesson.title[b.language] ?? lesson.title.en, link: "{link}" };
+    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, { ...vars, title: lesson.title.ar }), at: now, authorId: user.id, status: "sent", kind: "lesson", eventId });
+    audit(db, user, `send_lesson:${lessonId}`, b.id);
+    sent = 1;
+  });
+  refresh();
+  await backWith({ sent });
+}
+
+// ---------- The learner's lesson page (no login) ----------
+
+export async function learnerOpened(eventId: string) {
+  await mutate((db) => {
+    const ev = db.events.find((e) => e.id === eventId);
+    if (!ev || ev.openedAt) return;
+    ev.openedAt = new Date().toISOString();
+    db.messages.forEach((m) => {
+      if (m.eventId === eventId) m.status = "read";
+    });
+  });
+  refresh();
+}
+
+export async function learnerAnswer(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  const answer = formData.get("answer") === "yes";
+  await mutate((db) => {
+    const ev = db.events.find((e) => e.id === eventId);
+    if (!ev || ev.completedAt) return;
+    const lesson = db.lessons.find((l) => l.id === ev.lessonId);
+    const now = new Date().toISOString();
+    ev.openedAt ??= now;
+    ev.completedAt = now;
+    ev.correct = lesson ? lesson.answer === answer : null;
+    audit(db, null, "lesson_completed", ev.beneficiaryId);
+  });
+  refresh();
+  redirect(`/l/${eventId}`);
+}
+
+/** The learner taps "ask my teacher": the question lands in the chat, then WhatsApp opens. */
+export async function learnerAsk(formData: FormData) {
+  const eventId = String(formData.get("eventId"));
+  let text = "";
+  await mutate((db) => {
+    const ev = db.events.find((e) => e.id === eventId);
+    const b = ev && db.beneficiaries.find((x) => x.id === ev.beneficiaryId);
+    const lesson = ev && db.lessons.find((l) => l.id === ev.lessonId);
+    if (!ev || !b || !lesson) return;
+    const line = BENEFICIARY_LINES[3];
+    text = `${line[b.language]} (${lesson.title[b.language] ?? lesson.title.en})`;
+    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "in", text, translation: `${line.ar} (${lesson.title.ar})`, at: new Date().toISOString(), authorId: null, status: null, kind: "text" });
+  });
+  refresh();
+  redirect(`https://wa.me/966500000000?text=${encodeURIComponent(text)}`);
+}
+
+// ---------- Lesson library ----------
+
+function canEditLessons(user: User) {
+  return user.role !== "caller";
+}
+
+export async function saveLesson(formData: FormData) {
+  const user = await requireUser();
+  if (!canEditLessons(user)) throw new Error("Not allowed");
+  const id = String(formData.get("lessonId") ?? "");
+  const trackId = String(formData.get("trackId") ?? "TR1");
+  const read = (field: string, lang: string) => String(formData.get(`${field}_${lang}`) ?? "").trim();
+  let savedId = id;
+  await mutate((db) => {
+    let lesson = db.lessons.find((l) => l.id === id);
+    if (!lesson) {
+      const order = Math.max(0, ...db.lessons.filter((l) => l.trackId === trackId).map((l) => l.order)) + 1;
+      lesson = { id: newId("L"), trackId, order, status: "draft", title: { ar: "", en: "" }, point: { ar: "", en: "" }, question: { ar: "", en: "" }, practice: { ar: "", en: "" }, answer: true, audioSec: 0, updatedAt: "", updatedBy: "" };
+      db.lessons.push(lesson);
+      savedId = lesson.id;
+    }
+    for (const field of ["title", "point", "question", "practice"] as const) {
+      for (const lang of ["ar", "en", ...LANGS]) {
+        if (formData.has(`${field}_${lang}`)) (lesson[field] as Record<string, string>)[lang] = read(field, lang);
+      }
+    }
+    if (formData.has("answer")) lesson.answer = formData.get("answer") === "yes";
+    lesson.updatedAt = new Date().toISOString();
+    lesson.updatedBy = user.id;
+    // An approved lesson that loses a translation goes back to draft.
+    if (lesson.status === "ready" && missingLanguages(lesson, LANGS).length) lesson.status = "draft";
+    audit(db, user, "save_lesson", lesson.id);
+  });
+  refresh();
+  const tab = String(formData.get("tab") ?? "");
+  redirect(`/lessons/${savedId}?saved=1${tab ? `&l=${encodeURIComponent(tab)}` : ""}`);
+}
+
+export async function setLessonStatus(formData: FormData) {
+  const user = await requireUser();
+  if (user.role !== "supervisor" && user.role !== "admin") throw new Error("Not allowed");
+  const id = String(formData.get("lessonId"));
+  const status = String(formData.get("status")) as Lesson["status"];
+  await mutate((db) => {
+    const lesson = db.lessons.find((l) => l.id === id);
+    if (!lesson) return;
+    if (status === "ready" && missingLanguages(lesson, LANGS).length) return;
+    lesson.status = status;
+    lesson.updatedAt = new Date().toISOString();
+    lesson.updatedBy = user.id;
+    audit(db, user, `lesson_status:${status}`, lesson.id);
+  });
+  refresh();
+}
+
+/** Demo stand-in for recording or uploading the voice note. */
+export async function recordVoice(formData: FormData) {
+  const user = await requireUser();
+  if (!canEditLessons(user)) throw new Error("Not allowed");
+  const id = String(formData.get("lessonId"));
+  await mutate((db) => {
+    const lesson = db.lessons.find((l) => l.id === id);
+    if (!lesson) return;
+    lesson.audioSec = 60 + Math.floor(Math.random() * 60);
+    lesson.updatedAt = new Date().toISOString();
+    lesson.updatedBy = user.id;
+  });
+  refresh();
+}
+
+// ---------- Groups ----------
+
+export async function updateGroupSchedule(formData: FormData) {
+  const user = await requireUser();
+  const groupId = String(formData.get("groupId"));
+  await mutate((db) => {
+    const group = db.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const owner = db.users.find((u) => u.id === group.ownerId);
+    if (!owner || (owner.id !== user.id && !canManageUser(db, user, owner))) throw new Error("Not allowed");
+    group.schedule.days = formData.getAll("days").map(Number).filter((d) => d >= 0 && d <= 6) as Weekday[];
+    const hour = String(formData.get("hour") ?? "");
+    group.schedule.hour = hour === "" ? null : Math.max(0, Math.min(23, Number(hour)));
+    group.schedule.paused = formData.get("paused") === "on";
+    const name = String(formData.get("name") ?? "").trim();
+    if (name) group.name = name;
+    audit(db, user, "update_group", group.id);
+  });
+  refresh();
+  await backWith({ saved: 1 });
+}
+
+export async function moveToGroup(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("beneficiaryId"));
+  const groupId = String(formData.get("groupId"));
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    const group = db.groups.find((g) => g.id === groupId);
+    if (!group || group.ownerId !== b.assignedTo) return;
+    b.groupId = group.id;
+    audit(db, user, "move_group", b.id);
+  });
+  refresh();
 }
 
 // ---------- File ----------
@@ -133,11 +373,11 @@ export async function addNote(formData: FormData) {
   const text = String(formData.get("text") ?? "").trim();
   if (!text) return;
   await mutate((db) => {
-    const b = getBeneficiary(db, user, id);
+    const b = getBeneficiary(db, user, id, false);
     db.notes.push({ id: newId("N"), beneficiaryId: b.id, authorId: user.id, text, at: new Date().toISOString(), needsContact: formData.get("needsContact") === "on" });
     audit(db, user, "add_note", b.id);
   });
-  refresh(id);
+  refresh();
 }
 
 export async function addTask(formData: FormData) {
@@ -151,22 +391,47 @@ export async function addTask(formData: FormData) {
     db.tasks.push({ id: newId("TK"), beneficiaryId: b.id, assigneeId: b.assignedTo, title, kind: "followup", due: new Date(due).toISOString(), createdAt: new Date().toISOString(), doneAt: null });
     audit(db, user, "add_task", b.id);
   });
-  refresh(id);
+  refresh();
 }
 
 export async function completeTask(formData: FormData) {
   const user = await requireUser();
   const taskId = String(formData.get("taskId"));
-  let bId = "";
   await mutate((db) => {
     const task = db.tasks.find((t) => t.id === taskId);
     if (!task) return;
     getBeneficiary(db, user, task.beneficiaryId);
     task.doneAt = new Date().toISOString();
-    bId = task.beneficiaryId;
     audit(db, user, "complete_task", task.beneficiaryId);
   });
-  refresh(bId);
+  refresh();
+}
+
+/** Moving someone to "embraced Islam" hands them to a teacher and their learning circle. */
+function handToTeacher(db: DB, user: User, b: Beneficiary) {
+  const caller = db.users.find((u) => u.id === b.assignedTo);
+  const teacher = suggestAssignee(db, b, "teacher", [], caller?.teamId);
+  if (!teacher) return null;
+  const now = new Date();
+  let group = groupForMember(db, teacher.id, "learning", b.language);
+  if (!group) {
+    group = { id: newId("G"), name: `حلقة جديدة · ${b.language}`, ownerId: teacher.id, kind: "learning", language: b.language, trackId: "TR1", schedule: { days: [0, 3], hour: null, paused: false }, createdAt: now.toISOString() };
+    db.groups.push(group);
+  }
+  db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId: b.assignedTo, toId: teacher.id, byId: user.id, reason: "انتقل إلى التعليم بعد إسلامه", at: now.toISOString() });
+  b.introducedBy = b.assignedTo;
+  b.assignedTo = teacher.id;
+  b.groupId = group.id;
+  const tpl = TEMPLATES.new_caller;
+  const vars = { name: firstName(b), caller: teacher.name.split(" ")[0] };
+  db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, vars), at: now.toISOString(), authorId: teacher.id, status: "sent", kind: "template" });
+  for (const day of [14, 30, 90]) {
+    db.tasks.push({ id: newId("TK"), beneficiaryId: b.id, assigneeId: teacher.id, title: `اطمئنان بعد ${day} يومًا من الإسلام`, kind: "checkin", due: new Date(now.getTime() + day * DAY).toISOString(), createdAt: now.toISOString(), doneAt: null });
+  }
+  db.tasks.forEach((t) => {
+    if (t.beneficiaryId === b.id && !t.doneAt && t.assigneeId === b.introducedBy) t.doneAt = now.toISOString();
+  });
+  return { teacher, group };
 }
 
 export async function changeStage(formData: FormData) {
@@ -174,6 +439,7 @@ export async function changeStage(formData: FormData) {
   const id = String(formData.get("beneficiaryId"));
   const stage = String(formData.get("stage")) as Stage;
   if (!STAGES.includes(stage)) return;
+  let moved: { teacher: string; group: string } | null = null;
   await mutate((db) => {
     const b = getBeneficiary(db, user, id);
     if (b.stage === stage) return;
@@ -182,15 +448,16 @@ export async function changeStage(formData: FormData) {
     b.stageHistory.push({ stage, at: now.toISOString() });
     if (stage === "muslim" && !b.convertedAt) {
       b.convertedAt = now.toISOString();
-      if (!db.progress.some((p) => p.beneficiaryId === b.id)) db.progress.push({ beneficiaryId: b.id, events: [] });
-      // Check-ins at the critical points after embracing Islam.
-      for (const day of [14, 30, 90]) {
-        db.tasks.push({ id: newId("TK"), beneficiaryId: b.id, assigneeId: b.assignedTo, title: `اطمئنان بعد ${day} يومًا من الإسلام`, kind: "checkin", due: new Date(now.getTime() + day * DAY).toISOString(), createdAt: now.toISOString(), doneAt: null });
-      }
+      const result = handToTeacher(db, user, b);
+      if (result) moved = { teacher: result.teacher.name, group: result.group.name };
     }
     audit(db, user, `stage:${stage}`, b.id);
   });
-  refresh(id);
+  refresh();
+  if (moved) {
+    const m = moved as { teacher: string; group: string };
+    redirect(`/beneficiaries/${id}?movedTo=${encodeURIComponent(m.teacher)}&group=${encodeURIComponent(m.group)}`);
+  }
 }
 
 export async function regenerateSummary(formData: FormData) {
@@ -201,7 +468,7 @@ export async function regenerateSummary(formData: FormData) {
     const b = getBeneficiary(db, user, id);
     b.summary = { text: buildSummary(db, b, lang), generatedAt: new Date().toISOString(), reviewed: false };
   });
-  refresh(id);
+  refresh();
 }
 
 export async function markSummaryReviewed(formData: FormData) {
@@ -215,7 +482,7 @@ export async function markSummaryReviewed(formData: FormData) {
     b.summary.reviewed = true;
     audit(db, user, "review_summary", b.id);
   });
-  refresh(id);
+  refresh();
 }
 
 export async function updateProfile(formData: FormData) {
@@ -231,7 +498,7 @@ export async function updateProfile(formData: FormData) {
     b.sensitive = formData.get("sensitive") === "on";
     audit(db, user, "update_profile", b.id);
   });
-  refresh(id);
+  refresh();
 }
 
 export async function addBeneficiary(formData: FormData) {
@@ -251,12 +518,13 @@ export async function addBeneficiary(formData: FormData) {
     // A caller keeps the case only when language and gender match; otherwise it goes to the best match.
     const selfFits = user.role === "caller" && user.gender === gender && user.languages.includes(language);
     const assignee =
-      (selfFits ? user : suggestAssignee(db, { language, gender })) ??
+      (selfFits ? user : suggestAssignee(db, { language, gender }, "caller", [], user.teamId)) ??
       db.users.find((u) => u.role === "caller" && u.gender === gender && u.languages.includes(language)) ??
       db.users.find((u) => u.role === "caller" && u.languages.includes(language))!;
     assigneeName = assignee.name;
     const now = new Date().toISOString();
     newBenId = `B-${1000 + db.beneficiaries.length + 1}`;
+    const group = groupForMember(db, assignee.id, "dawah", language);
     db.beneficiaries.push({
       id: newBenId,
       name,
@@ -270,11 +538,13 @@ export async function addBeneficiary(formData: FormData) {
       stage: "new",
       stageHistory: [{ stage: "new", at: now }],
       assignedTo: assignee.id,
+      introducedBy: null,
+      groupId: group?.id ?? null,
       sensitive: formData.get("sensitive") === "on",
       background: String(formData.get("background") ?? ""),
       needs: "",
       objections: [],
-      source: String(formData.get("source") ?? "") || "—",
+      source: String(formData.get("source") ?? ""),
       createdAt: now,
       convertedAt: null,
       summary: null,
@@ -295,116 +565,60 @@ export async function importChat(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
   const file = formData.get("file");
-  const nameInFile = String(formData.get("nameInFile") ?? "").trim().toLowerCase();
-  if (!(file instanceof File) || file.size === 0) return;
-  const raw = await file.text();
+  const raw = file instanceof File && file.size ? await file.text() : String(formData.get("raw") ?? "");
   const lines = parseWhatsAppExport(raw);
   let added = 0;
   await mutate((db) => {
     const b = getBeneficiary(db, user, id);
+    const seen = new Set(db.messages.filter((m) => m.beneficiaryId === b.id).map((m) => `${new Date(m.at).getTime()}|${m.text}`));
+    const theirName = b.name.split(" ")[0].toLowerCase();
     const senders = [...new Set(lines.map((l) => l.sender))];
-    const first = b.name.split(" ")[0].toLowerCase();
-    const benSender =
-      senders.find((s) => nameInFile && s.toLowerCase().includes(nameInFile)) ??
-      senders.find((s) => s.toLowerCase().includes(first)) ??
-      senders.find((s) => /\d{6,}/.test(s.replace(/\s/g, ""))) ??
-      senders[0];
-    const existing = new Set(db.messages.filter((m) => m.beneficiaryId === b.id).map((m) => `${m.at}|${m.text}`));
-    for (const l of lines) {
-      const at = l.at.toISOString();
-      if (existing.has(`${at}|${l.text}`)) continue;
-      existing.add(`${at}|${l.text}`);
-      db.messages.push({
-        id: newId("M"),
-        beneficiaryId: b.id,
-        direction: l.sender === benSender ? "in" : "out",
-        text: l.text,
-        translation: null,
-        at,
-        authorId: l.sender === benSender ? null : b.assignedTo,
-        status: l.sender === benSender ? null : "read",
-        kind: "imported",
-      });
+    const them = senders.find((s) => s.toLowerCase().includes(theirName)) ?? senders[0];
+    for (const line of lines) {
+      const key = `${line.at.getTime()}|${line.text}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const inbound = line.sender === them;
+      db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: inbound ? "in" : "out", text: line.text, translation: null, at: line.at.toISOString(), authorId: inbound ? null : b.assignedTo, status: inbound ? null : "read", kind: "imported" });
       added++;
     }
     audit(db, user, `import_chat:${added}`, b.id);
   });
-  refresh(id);
+  refresh();
   redirect(`/beneficiaries/${id}?imported=${added}`);
-}
-
-// ---------- New Muslims ----------
-
-export async function sendNextLesson(formData: FormData) {
-  const user = await requireUser();
-  const id = String(formData.get("beneficiaryId"));
-  await mutate((db) => {
-    const b = getBeneficiary(db, user, id);
-    const state = learnerState(db, b);
-    if (state.waitingOnLesson || state.completed >= state.total) return;
-    let p = db.progress.find((x) => x.beneficiaryId === b.id);
-    if (!p) {
-      p = { beneficiaryId: b.id, events: [] };
-      db.progress.push(p);
-    }
-    const now = new Date().toISOString();
-    p.events.push({ lesson: state.completed + 1, sentAt: now, startedAt: null, completedAt: null, correct: null });
-    const vars = { name: firstName(b) };
-    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(TEMPLATES.lesson_ready[b.language], vars), translation: fillTemplate(TEMPLATES.lesson_ready.ar, vars), at: now, authorId: null, status: "sent", kind: "template" });
-    audit(db, user, `send_lesson:${state.completed + 1}`, b.id);
-  });
-  refresh(id);
-}
-
-/** Demo only: the learner taps Start, reads the lesson and answers the quiz. */
-export async function simulateLesson(formData: FormData) {
-  const user = await requireUser();
-  const id = String(formData.get("beneficiaryId"));
-  const correct = formData.get("correct") !== "no";
-  await mutate((db) => {
-    const b = getBeneficiary(db, user, id);
-    const p = db.progress.find((x) => x.beneficiaryId === b.id);
-    const current = p?.events[p.events.length - 1];
-    if (!current || current.completedAt) return;
-    const now = new Date().toISOString();
-    current.startedAt = now;
-    current.completedAt = now;
-    current.correct = correct;
-    db.messages.forEach((m) => {
-      if (m.beneficiaryId === b.id && m.direction === "out") m.status = "read";
-    });
-    const lesson = db.lessons.find((l) => l.order === current.lesson);
-    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "in", text: correct ? "✅" : "❌", translation: `${lesson?.title.ar ?? ""}: ${correct ? "إجابة صحيحة" : "إجابة خاطئة"}`, at: now, authorId: null, status: null, kind: "quiz" });
-  });
-  refresh(id);
 }
 
 // ---------- Team ----------
 
+/** Moves each case to the person picked on the handover page and introduces them on WhatsApp. */
 export async function handover(formData: FormData) {
   const user = await requireUser();
-  if (user.role === "caller") return;
   const fromId = String(formData.get("fromId"));
-  const newStatus = String(formData.get("newStatus") ?? "leave") as User["status"];
+  const newStatus = String(formData.get("newStatus") ?? "") as User["status"] | "";
   let moved = 0;
   await mutate((db) => {
     const from = db.users.find((u) => u.id === fromId);
-    if (!from) return;
-    if (user.role === "supervisor" && supervisorIdFor(db, fromId) !== user.id) return;
-    const now = new Date();
-    for (const b of db.beneficiaries.filter((x) => x.assignedTo === fromId && x.stage !== "closed")) {
-      const toId = String(formData.get(`to_${b.id}`) ?? "");
-      const to = db.users.find((u) => u.id === toId && u.role === "caller");
-      if (!to || to.id === fromId) continue;
-      // Make sure the new caller starts from an up-to-date summary.
-      if (!b.summary) b.summary = { text: buildSummary(db, b, "ar"), generatedAt: now.toISOString(), reviewed: false };
+    if (!from || !canManageUser(db, user, from)) throw new Error("Not allowed");
+    for (const [key, value] of formData.entries()) {
+      if (!key.startsWith("to_")) continue;
+      const b = db.beneficiaries.find((x) => x.id === key.slice(3) && x.assignedTo === fromId);
+      const to = db.users.find((u) => u.id === String(value) && u.role === from.role);
+      if (!b || !to) continue;
+      const now = new Date().toISOString();
+      db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId, toId: to.id, byId: user.id, reason: newStatus === "left" ? "مغادرة" : "إجازة", at: now });
       b.assignedTo = to.id;
-      db.tasks.filter((t) => t.beneficiaryId === b.id && !t.doneAt).forEach((t) => (t.assigneeId = to.id));
-      db.tasks.push({ id: newId("TK"), beneficiaryId: b.id, assigneeId: to.id, title: "أول تواصل بعد التسليم: اقرأ الملخص وعرّف بنفسك", kind: "first_contact", due: new Date(now.getTime() + DAY).toISOString(), createdAt: now.toISOString(), doneAt: null });
-      db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId, toId: to.id, byId: user.id, reason: newStatus === "left" ? "مغادرة الداعية" : "إجازة الداعية", at: now.toISOString() });
+      if (b.groupId) b.groupId = groupForMember(db, to.id, b.stage === "muslim" ? "learning" : "dawah", b.language)?.id ?? b.groupId;
+      if (!b.summary) b.summary = { text: buildSummary(db, b, "ar"), generatedAt: now, reviewed: false };
+      db.tasks.forEach((t) => {
+        if (t.beneficiaryId === b.id && !t.doneAt) t.assigneeId = to.id;
+      });
+      db.tasks.push({ id: newId("TK"), beneficiaryId: b.id, assigneeId: to.id, title: "تعارف بعد الاستلام", kind: "first_contact", due: new Date(Date.now() + 12 * HOUR).toISOString(), createdAt: now, doneAt: null });
+      const tpl = TEMPLATES.new_caller;
+      const vars = { name: firstName(b), caller: to.name.split(" ")[0] };
+      db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, vars), at: now, authorId: to.id, status: "sent", kind: "template" });
       moved++;
     }
-    if (["available", "leave", "left"].includes(newStatus)) from.status = newStatus;
+    if (newStatus) from.status = newStatus;
     audit(db, user, `handover:${moved}`, fromId);
   });
   refresh();
@@ -413,13 +627,33 @@ export async function handover(formData: FormData) {
 
 export async function setUserStatus(formData: FormData) {
   const user = await requireUser();
-  if (user.role === "caller") return;
   const id = String(formData.get("userId"));
   const status = String(formData.get("status")) as User["status"];
   await mutate((db) => {
-    const u = db.users.find((x) => x.id === id);
-    if (u && ["available", "leave", "left"].includes(status)) u.status = status;
+    const target = db.users.find((u) => u.id === id);
+    if (!target || !canManageUser(db, user, target)) throw new Error("Not allowed");
+    target.status = status;
     audit(db, user, `status:${status}`, id);
   });
   refresh();
 }
+
+export async function createGroup(formData: FormData) {
+  const user = await requireUser();
+  const ownerId = String(formData.get("ownerId") || user.id);
+  const name = String(formData.get("name") ?? "").trim();
+  const language = String(formData.get("language")) as Lang;
+  if (!name || !LANGS.includes(language)) return;
+  let id = "";
+  await mutate((db) => {
+    const owner = db.users.find((u) => u.id === ownerId);
+    if (!owner || (owner.id !== user.id && !canManageUser(db, user, owner))) throw new Error("Not allowed");
+    const role = owner.role as StaffRole;
+    id = newId("G");
+    db.groups.push({ id, name, ownerId, kind: role === "teacher" ? "learning" : "dawah", language, trackId: role === "teacher" ? "TR1" : null, schedule: { days: role === "teacher" ? [0, 3] : [], hour: null, paused: false }, createdAt: new Date().toISOString() });
+    audit(db, user, "create_group", id);
+  });
+  refresh();
+  redirect(`/groups/${id}`);
+}
+

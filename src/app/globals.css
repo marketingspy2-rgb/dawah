@@ -1,37 +1,89 @@
 @import "tailwindcss";
 
+/* IBM Plex Sans Arabic, self-hosted from public/fonts so both builds serve it. */
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2) format('woff2'); unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+102E0-102FB,U+10E60-10E7E,U+10EC2-10EC4,U+10EFC-10EFF,U+1EE00-1EE03,U+1EE05-1EE1F,U+1EE21-1EE22,U+1EE24,U+1EE27,U+1EE29-1EE32,U+1EE34-1EE37,U+1EE39,U+1EE3B,U+1EE42,U+1EE47,U+1EE49,U+1EE4B,U+1EE4D-1EE4F,U+1EE51-1EE52,U+1EE54,U+1EE57,U+1EE59,U+1EE5B,U+1EE5D,U+1EE5F,U+1EE61-1EE62,U+1EE64,U+1EE67-1EE6A,U+1EE6C-1EE72,U+1EE74-1EE77,U+1EE79-1EE7C,U+1EE7E,U+1EE80-1EE89,U+1EE8B-1EE9B,U+1EEA1-1EEA3,U+1EEA5-1EEA9,U+1EEAB-1EEBB,U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/ibm-plex-sans-arabic-latin-ext-400-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 400; src: url(/fonts/ibm-plex-sans-arabic-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2) format('woff2'); unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+102E0-102FB,U+10E60-10E7E,U+10EC2-10EC4,U+10EFC-10EFF,U+1EE00-1EE03,U+1EE05-1EE1F,U+1EE21-1EE22,U+1EE24,U+1EE27,U+1EE29-1EE32,U+1EE34-1EE37,U+1EE39,U+1EE3B,U+1EE42,U+1EE47,U+1EE49,U+1EE4B,U+1EE4D-1EE4F,U+1EE51-1EE52,U+1EE54,U+1EE57,U+1EE59,U+1EE5B,U+1EE5D,U+1EE5F,U+1EE61-1EE62,U+1EE64,U+1EE67-1EE6A,U+1EE6C-1EE72,U+1EE74-1EE77,U+1EE79-1EE7C,U+1EE7E,U+1EE80-1EE89,U+1EE8B-1EE9B,U+1EEA1-1EEA3,U+1EEA5-1EEA9,U+1EEAB-1EEBB,U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/ibm-plex-sans-arabic-latin-ext-500-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 500; src: url(/fonts/ibm-plex-sans-arabic-latin-500-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2) format('woff2'); unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+102E0-102FB,U+10E60-10E7E,U+10EC2-10EC4,U+10EFC-10EFF,U+1EE00-1EE03,U+1EE05-1EE1F,U+1EE21-1EE22,U+1EE24,U+1EE27,U+1EE29-1EE32,U+1EE34-1EE37,U+1EE39,U+1EE3B,U+1EE42,U+1EE47,U+1EE49,U+1EE4B,U+1EE4D-1EE4F,U+1EE51-1EE52,U+1EE54,U+1EE57,U+1EE59,U+1EE5B,U+1EE5D,U+1EE5F,U+1EE61-1EE62,U+1EE64,U+1EE67-1EE6A,U+1EE6C-1EE72,U+1EE74-1EE77,U+1EE79-1EE7C,U+1EE7E,U+1EE80-1EE89,U+1EE8B-1EE9B,U+1EEA1-1EEA3,U+1EEA5-1EEA9,U+1EEAB-1EEBB,U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/ibm-plex-sans-arabic-latin-ext-600-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 600; src: url(/fonts/ibm-plex-sans-arabic-latin-600-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/ibm-plex-sans-arabic-arabic-700-normal.woff2) format('woff2'); unicode-range: U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0897-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC,U+102E0-102FB,U+10E60-10E7E,U+10EC2-10EC4,U+10EFC-10EFF,U+1EE00-1EE03,U+1EE05-1EE1F,U+1EE21-1EE22,U+1EE24,U+1EE27,U+1EE29-1EE32,U+1EE34-1EE37,U+1EE39,U+1EE3B,U+1EE42,U+1EE47,U+1EE49,U+1EE4B,U+1EE4D-1EE4F,U+1EE51-1EE52,U+1EE54,U+1EE57,U+1EE59,U+1EE5B,U+1EE5D,U+1EE5F,U+1EE61-1EE62,U+1EE64,U+1EE67-1EE6A,U+1EE6C-1EE72,U+1EE74-1EE77,U+1EE79-1EE7C,U+1EE7E,U+1EE80-1EE89,U+1EE8B-1EE9B,U+1EEA1-1EEA3,U+1EEA5-1EEA9,U+1EEAB-1EEBB,U+1EEF0-1EEF1; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/ibm-plex-sans-arabic-latin-ext-700-normal.woff2) format('woff2'); unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'IBM Plex Sans Arabic'; font-style: normal; font-display: swap; font-weight: 700; src: url(/fonts/ibm-plex-sans-arabic-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+
 :root {
-  --bg: #f6f7f5;
+  --bg: #f5f3ee;
   --surface: #ffffff;
-  --surface-2: #f0f2ef;
-  --border: #e2e5e0;
-  --text: #1c2420;
-  --muted: #5f6b65;
-  --brand: #0f6b5c;
-  --brand-soft: #e3f1ed;
-  --wa: #128c4a;
-  --wa-soft: #e5f6ec;
-  --green: #15803d;
-  --green-soft: #e6f4ea;
-  --yellow: #a16207;
-  --yellow-soft: #fdf3d8;
-  --red: #b42318;
-  --red-soft: #fdeceb;
+  --surface-2: #f2efe8;
+  --surface-3: #ebe6dc;
+  --border: #e6e1d6;
+  --border-strong: #d6cfc0;
+  --text: #16211d;
+  --muted: #67716c;
+  --faint: #98a09b;
+
+  --brand: #0d5c4d;
+  --brand-strong: #0a4a3e;
+  --brand-soft: #e1efe9;
+  --brand-tint: #f0f7f4;
+  --gold: #a87a2c;
+  --gold-soft: #f6ecd9;
+
+  --night: #0c332c;
+  --night-2: #12443b;
+  --night-text: #cfe1da;
+
+  --wa: #168a47;
+  --wa-strong: #11753b;
+  --wa-soft: #e3f5ea;
+  --green: #157a3d;
+  --green-soft: #e4f3e8;
+  --yellow: #a35f00;
+  --yellow-soft: #fbefd6;
+  --red: #b8342a;
+  --red-soft: #fbe9e6;
+  --blue: #2a5fa8;
+  --blue-soft: #e6eef9;
+  --violet: #6b4fa3;
+  --violet-soft: #efeaf8;
+
   --bubble-in: #ffffff;
-  --bubble-out: #dcf4e3;
-  --chat-bg: #efeae2;
+  --bubble-out: #d9f5df;
+  --chat-bg: #efe9df;
+
+  --shadow-sm: 0 1px 2px rgb(22 33 29 / 0.05);
+  --shadow: 0 1px 2px rgb(22 33 29 / 0.04), 0 6px 20px -6px rgb(22 33 29 / 0.08);
+  --shadow-lg: 0 2px 4px rgb(22 33 29 / 0.04), 0 18px 40px -12px rgb(22 33 29 / 0.18);
+
+  /* Eight-point star lattice used as a quiet ornament on dark surfaces. */
+  --pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.07' stroke-width='1'%3E%3Cpath d='M28 6l6.4 15.6L50 28l-15.6 6.4L28 50l-6.4-15.6L6 28l15.6-6.4z'/%3E%3Crect x='16' y='16' width='24' height='24' transform='rotate(45 28 28)'/%3E%3Ccircle cx='28' cy='28' r='4'/%3E%3C/g%3E%3C/svg%3E");
+  --pattern-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%230d5c4d' stroke-opacity='0.07' stroke-width='1'%3E%3Cpath d='M28 6l6.4 15.6L50 28l-15.6 6.4L28 50l-6.4-15.6L6 28l15.6-6.4z'/%3E%3Crect x='16' y='16' width='24' height='24' transform='rotate(45 28 28)'/%3E%3Ccircle cx='28' cy='28' r='4'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
+  --color-brand-tint: var(--brand-tint);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-night-text: var(--night-text);
   --color-wa: var(--wa);
+  --color-wa-strong: var(--wa-strong);
   --color-wa-soft: var(--wa-soft);
   --color-ok: var(--green);
   --color-ok-soft: var(--green-soft);
@@ -39,10 +91,17 @@
   --color-warn-soft: var(--yellow-soft);
   --color-bad: var(--red);
   --color-bad-soft: var(--red-soft);
+  --color-info: var(--blue);
+  --color-info-soft: var(--blue-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
   --color-bubble-in: var(--bubble-in);
   --color-bubble-out: var(--bubble-out);
   --color-chat: var(--chat-bg);
-  --font-sans: system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", "Noto Sans", Arial, sans-serif;
+  --shadow-card: var(--shadow);
+  --shadow-soft: var(--shadow-sm);
+  --shadow-pop: var(--shadow-lg);
+  --font-sans: "IBM Plex Sans Arabic", system-ui, "Segoe UI", "Noto Sans", "Noto Sans Bengali", "Noto Sans Devanagari", Arial, sans-serif;
 }
 
 html,
@@ -54,7 +113,8 @@ body {
 body {
   font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.6;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
 
 :focus-visible {
@@ -62,18 +122,38 @@ body {
   outline-offset: 2px;
 }
 
-input,
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select,
 textarea {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 8px 12px;
   width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--brand);
+  width: 16px;
+  height: 16px;
 }
 
 textarea {
   resize: vertical;
+}
+
+label {
+  cursor: default;
 }
 
 table {
@@ -82,20 +162,69 @@ table {
 }
 
 th {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12.5px;
   text-align: start;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 td {
-  padding: 9px 10px;
+  padding: 11px 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+tbody tr {
+  transition: background 0.12s;
+}
+
+tbody tr:hover {
+  background: var(--brand-tint);
+}
+
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+.bg-pattern {
+  background-image: var(--pattern);
+}
+
+.bg-pattern-light {
+  background-image: var(--pattern-light);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
 }
