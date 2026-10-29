@@ -95,9 +95,15 @@ export function lastInbound(db: DB, beneficiaryId: string): Message | undefined 
   return last;
 }
 
+/**
+ * The beneficiary's last message when nobody has answered it yet. A reply made from a
+ * personal phone counts once it is logged as a chat, call, question or lesson.
+ */
 export function awaitingReply(db: DB, b: Beneficiary) {
   const last = lastMessage(db, b.id);
-  return last?.direction === "in" ? last : null;
+  if (last?.direction !== "in") return null;
+  const answered = db.touches.some((t) => t.beneficiaryId === b.id && t.kind !== "no_reply" && t.at > last.at);
+  return answered ? null : last;
 }
 
 /** WhatsApp allows free-form messages only within 24 hours of the beneficiary's last message. */
