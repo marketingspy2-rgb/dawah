@@ -13,6 +13,16 @@
       "database_name": "dawah-demo"
     }
   ],
+  // Branch previews (PR builds) use their own demo database so they never touch the main site's data.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "dawah-demo-preview",
+        "database_id": "e182c2c7-7a88-4e3e-a63a-15b82373a506"
+      }
+    ]
+  },
   "observability": {
     "enabled": true
   },
