@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Activity, BarChart3, BookOpen, CalendarClock, Home, Inbox, Megaphone, Languages, LogOut, MessagesSquare, Network, Repeat, RotateCcw, Users, UsersRound } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, ClipboardList, Gauge, HeartHandshake, Home, Inbox, Megaphone, Languages, ListChecks, LogOut, MessagesSquare, Network, PhoneCall, Repeat, RotateCcw, Sprout, UsersRound } from "lucide-react";
 import { logout, resetDemo, toggleLang } from "@/app/actions";
 import { NavLink } from "@/components/client";
 import { Avatar } from "@/components/ui";
@@ -9,10 +9,11 @@ import { roleLabel, translator } from "@/lib/i18n";
 import { HOUR, awaitingReply, isStaff, openTasks, teamOf, upcoming, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
 import { LATEST_UPDATE } from "@/lib/updates";
+import { hidayaSummary } from "@/lib/programs";
 
 export const dynamic = "force-dynamic";
 
-type Item = { href: string; label: string; icon: React.ReactNode; badge?: number; dot?: boolean };
+type Item = { href: string; label: string; icon: React.ReactNode; badge?: number; dot?: boolean; exclude?: string[] };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -38,38 +39,47 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const i = (Icon: typeof Home) => <Icon strokeWidth={1.9} />;
   const staff = isStaff(user);
+  const recontact = hidayaSummary(db, visibleBeneficiaries(db, user).filter((b) => user.role !== "caller" || b.assignedTo === user.id)).recontact;
   const sections: { label: string; items: Item[] }[] = [
+    { label: t("navHome"), items: [{ href: "/", label: t("home"), icon: i(Home) }] },
     {
-      label: t("navWork"),
+      label: t("hidaya"),
       items: [
-        { href: "/", label: staff ? t("today") : t("overview"), icon: i(Home), badge: staff ? overdue : undefined },
-        { href: "/chats", label: t("chats"), icon: i(MessagesSquare), badge: waiting },
-        { href: "/groups", label: staff ? t("myGroups") : t("groups"), icon: i(UsersRound) },
-        { href: "/beneficiaries", label: t("beneficiaries"), icon: i(Users) },
-        { href: "/share", label: t("addChat"), icon: i(Inbox), badge: pendingShares || undefined },
-        ...(staff ? [{ href: "/insights", label: t("insights"), icon: i(Activity) }] : []),
+        { href: "/hidaya", label: t("hidayaTable"), icon: i(HeartHandshake), exclude: ["/hidaya/followup", "/hidaya/insights"] },
+        { href: "/hidaya/followup", label: t("recontact"), icon: i(PhoneCall), badge: recontact || undefined },
+        { href: "/hidaya/insights", label: t("hidayaInsights"), icon: i(BarChart3) },
       ],
     },
-    ...(user.role !== "caller"
-      ? [
-          {
-            label: t("navTeaching"),
-            items: [
+    {
+      label: t("newMuslim"),
+      items: [
+        { href: "/beneficiaries", label: t("muslimTable"), icon: i(Sprout) },
+        { href: "/today", label: staff ? t("today") : t("overview"), icon: i(ClipboardList), badge: staff ? overdue : undefined },
+        { href: "/chats", label: t("chats"), icon: i(MessagesSquare), badge: waiting },
+        { href: "/groups", label: staff ? t("myGroups") : t("groups"), icon: i(UsersRound) },
+        ...(user.role !== "caller"
+          ? [
               { href: "/schedule", label: t("schedule"), icon: i(CalendarClock), badge: lessonsSoon },
               { href: "/lessons", label: t("lessons"), icon: i(BookOpen) },
-            ],
-          },
-        ]
-      : []),
+            ]
+          : []),
+        { href: "/share", label: t("addChat"), icon: i(Inbox), badge: pendingShares || undefined },
+        { href: "/insights", label: t("insights"), icon: i(Activity) },
+        ...(!staff
+          ? [
+              { href: "/dashboard", label: t("dashboard"), icon: i(Gauge) },
+              { href: "/rules", label: t("rules"), icon: i(Repeat) },
+            ]
+          : []),
+      ],
+    },
     ...(!staff
       ? [
           {
             label: t("navManage"),
             items: [
               { href: "/team", label: t("structure"), icon: i(Network) },
-              { href: "/dashboard", label: t("dashboard"), icon: i(BarChart3) },
-              { href: "/insights", label: t("insights"), icon: i(Activity) },
-              { href: "/rules", label: t("rules"), icon: i(Repeat) },
+              ...(user.role === "admin" ? [{ href: "/lists", label: t("listsTitle"), icon: i(ListChecks) }] : []),
             ],
           },
         ]

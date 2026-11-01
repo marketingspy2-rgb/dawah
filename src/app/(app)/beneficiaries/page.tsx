@@ -1,167 +1,231 @@
 import Link from "next/link";
-import { Plus, Search, UsersRound } from "lucide-react";
-import { Avatar, Card, Empty, LessonDots, LevelBadge, LinkButton, Notice, PageHeader, PersonName, Pill, StageBadge, Tabs, WhatsAppLink, cx } from "@/components/ui";
+import { Award, Plus, Search, UsersRound } from "lucide-react";
+import { LessonGrid, StatusChip } from "@/components/fields";
+import { ProgramNav } from "@/components/program-nav";
+import { Empty, LinkButton, Notice, PageHeader, Tabs } from "@/components/ui";
 import { readDb } from "@/lib/db";
-import { LANG_LABELS, translator } from "@/lib/i18n";
-import { awaitingReply, canAct, canSeeName, displayName, isStaff, lastMessage, learnerState, relTime, staffUnder, visibleBeneficiaries } from "@/lib/logic";
+import { formatGregorian, formatHijri, hijriOf, isoDay } from "@/lib/hijri";
+import { translator } from "@/lib/i18n";
+import { canSeeName, displayName, staffUnder, visibleBeneficiaries } from "@/lib/logic";
+import { F, STAGE_NAMES, lessonsDone, muslimCases, muslimStage, muslimSummary } from "@/lib/programs";
 import { getUiLang, requireUser } from "@/lib/session";
-import type { Beneficiary, Group } from "@/lib/types";
+import type { Beneficiary } from "@/lib/types";
+import { MUSLIM_LESSONS } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function BeneficiariesPage({ searchParams }: { searchParams: Promise<{ q?: string; owner?: string; view?: string; added?: string; to?: string }> }) {
-  const { q, owner, view = "active", added, to } = await searchParams;
+type Q = { q?: string; owner?: string; status?: string; year?: string; view?: string; added?: string; to?: string };
+
+/** المسلم الجديد: the association's new Muslim sheet, one row per person. */
+export default async function NewMuslimsPage({ searchParams }: { searchParams: Promise<Q> }) {
+  const sp = await searchParams;
+  const { q, owner, status, year, view = "all", added, to } = sp;
   const user = await requireUser();
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
-  const now = Date.now();
-
-  const all = visibleBeneficiaries(db, user);
+  const today = isoDay();
+  const all = muslimCases(visibleBeneficiaries(db, user));
   const staff = staffUnder(db, user);
-  const inView = (b: Beneficiary) =>
-    view === "dawah" ? b.stage !== "muslim" && b.stage !== "closed" : view === "learners" ? b.stage === "muslim" : view === "closed" ? b.stage === "closed" : b.stage !== "closed";
-  const list = all
-    .filter(inView)
-    .filter((b) => !owner || b.assignedTo === owner)
-    .filter((b) => {
-      if (!q) return true;
-      const name = displayName(db, user, b).toLowerCase();
-      return name.includes(q.toLowerCase()) || (canSeeName(db, user, b) && b.phone.replace(/\D/g, "").includes(q.replace(/\D/g, "") || "~"));
-    });
+  const summary = muslimSummary(all, today);
+  const years = [...new Set(all.map((b) => (b.muslim!.islamDate ? hijriOf(b.muslim!.islamDate).y : 0)).filter(Boolean))].sort((a, c) => c - a);
 
-  // One block per group, in the order of the people who own them.
-  const byGroup = new Map<string, Beneficiary[]>();
-  for (const b of list) {
-    const key = b.groupId ?? "none";
-    if (!byGroup.has(key)) byGroup.set(key, []);
-    byGroup.get(key)!.push(b);
-  }
-  const blocks = [...byGroup.entries()]
-    .map(([id, members]) => ({ group: db.groups.find((g) => g.id === id) ?? null, members }))
-    .sort((a, c) => (a.group?.ownerId ?? "~").localeCompare(c.group?.ownerId ?? "~") || (a.group?.name ?? "").localeCompare(c.group?.name ?? ""));
-
-  const href = (patch: Record<string, string | undefined>) => {
+  const inView = (b: Beneficiary, v: string) => {
+    const m = b.muslim!;
+    if (v === "cert") return m.certificate;
+    if (v === "1" || v === "2" || v === "3") return !m.certificate && String(muslimStage(m)) === v;
+    return true;
+  };
+  const filtered = (v: string) =>
+    all
+      .filter((b) => inView(b, v))
+      .filter((b) => !owner || b.assignedTo === owner || b.introducedBy === owner)
+      .filter((b) => !status || b.muslim!.status === status)
+      .filter((b) => !year || (b.muslim!.islamDate && String(hijriOf(b.muslim!.islamDate).y) === year))
+      .filter((b) => {
+        if (!q) return true;
+        const s = q.trim().toLowerCase();
+        const d = s.replace(/\D/g, "") || "~";
+        return displayName(db, user, b).toLowerCase().includes(s) || (canSeeName(db, user, b) && (b.phone.replace(/\D/g, "").includes(d) || b.muslim!.iqama.includes(d))) || String(b.muslim!.serial) === s;
+      });
+  const list = filtered(view).sort((a, c) => c.muslim!.serial - a.muslim!.serial);
+  const href = (patch: Partial<Q>) => {
     const p = new URLSearchParams();
-    const merged = { q, owner, view, ...patch };
-    for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
+    for (const [k, v] of Object.entries({ ...sp, added: undefined, to: undefined, ...patch })) if (v) p.set(k, v);
     return `/beneficiaries?${p.toString()}`;
   };
-  const count = (v: string) => all.filter((b) => (v === "dawah" ? b.stage !== "muslim" && b.stage !== "closed" : v === "learners" ? b.stage === "muslim" : v === "closed" ? b.stage === "closed" : b.stage !== "closed")).filter((b) => !owner || b.assignedTo === owner).length;
+  const userName = (id: string | null) => db.users.find((u) => u.id === id)?.name ?? "—";
+  const filtersOn = !!(owner || status || year || q);
 
   return (
     <>
       {added && <Notice tone="info">{t("addedTo", { name: added, to: to ?? "" })}</Notice>}
       <PageHeader
-        title={isStaff(user) ? t("myCases") : user.role === "supervisor" ? t("teamCases") : t("allCases")}
-        subtitle={t("groupsSub")}
+        eyebrow={t("muslimEyebrow")}
+        title={t("newMuslim")}
+        subtitle={t("newMuslimSub")}
         actions={
-          user.role !== "teacher" && (
-            <LinkButton href="/beneficiaries/new">
-              <Plus className="size-4" />
-              {t("addBeneficiary")}
-            </LinkButton>
-          )
+          <LinkButton href="/beneficiaries/new">
+            <Plus className="size-4" />
+            {t("addMuslim")}
+          </LinkButton>
         }
       />
+      <ProgramNav program="muslim" active="table" t={t} role={user.role} />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <form className="relative min-w-56 flex-1">
-          <Search className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-faint ltr:left-3 rtl:right-3" />
-          {owner && <input type="hidden" name="owner" value={owner} />}
-          <input type="hidden" name="view" value={view} />
-          <input name="q" defaultValue={q} placeholder={t("search")} className="ltr:pl-9! rtl:pr-9!" />
-        </form>
-        {!isStaff(user) && (
-          <form className="flex items-center gap-2">
-            <input type="hidden" name="view" value={view} />
-            <select name="owner" defaultValue={owner ?? ""} className="w-auto!" aria-label={t("responsible")}>
-              <option value="">{t("all")}</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button className="rounded-xl border border-border-strong bg-surface px-3 py-2 text-sm hover:bg-surface-2">{t("filter")}</button>
-          </form>
-        )}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          [t("muslimTotal"), summary.total],
+          [t("muslimYear"), summary.year],
+          [t("muslimMonth"), summary.month],
+          [STAGE_NAMES[1][lang], summary.stage[1]],
+          [STAGE_NAMES[2][lang], summary.stage[2]],
+          [STAGE_NAMES[3][lang], summary.stage[3]],
+        ].map(([k, v]) => (
+          <div key={k} className="rounded-2xl border border-border bg-surface px-4 py-3 shadow-card">
+            <div className="text-xs text-muted">{k}</div>
+            <div className="num mt-0.5 text-2xl font-bold">{v}</div>
+          </div>
+        ))}
       </div>
+
+      <form className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))_auto]">
+        <input type="hidden" name="view" value={view} />
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-faint ltr:left-3 rtl:right-3" />
+          <input name="q" defaultValue={q} placeholder={t("muslimSearch")} className="ltr:pl-9! rtl:pr-9!" />
+        </div>
+        <select name="owner" defaultValue={owner ?? ""} aria-label={F.follower[lang]}>
+          <option value="">
+            {F.follower[lang]}: {t("all")}
+          </option>
+          {staff.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <select name="status" defaultValue={status ?? ""} aria-label={F.status[lang]}>
+          <option value="">
+            {F.status[lang]}: {t("all")}
+          </option>
+          {db.settings.lists.status.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <select name="year" defaultValue={year ?? ""} aria-label={t("islamYear")}>
+          <option value="">
+            {t("islamYear")}: {t("all")}
+          </option>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}هـ
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <button className="rounded-xl border border-border-strong bg-surface px-4 py-2 text-sm hover:bg-surface-2">{t("filter")}</button>
+          {filtersOn && (
+            <Link href={`/beneficiaries?view=${view}`} className="self-center text-xs text-muted hover:text-text">
+              {t("clear")}
+            </Link>
+          )}
+        </div>
+      </form>
 
       <Tabs
         active={view}
         items={[
-          { key: "active", href: href({ view: "active" }), label: t("all"), count: count("active") },
-          { key: "dawah", href: href({ view: "dawah" }), label: t("journey1"), count: count("dawah") },
-          { key: "learners", href: href({ view: "learners" }), label: t("journey3"), count: count("learners") },
-          { key: "closed", href: href({ view: "closed" }), label: STAGE_CLOSED[lang], count: count("closed") },
+          { key: "all", href: href({ view: "all" }), label: t("all"), count: filtered("all").length },
+          { key: "1", href: href({ view: "1" }), label: STAGE_NAMES[1][lang], count: filtered("1").length },
+          { key: "2", href: href({ view: "2" }), label: STAGE_NAMES[2][lang], count: filtered("2").length },
+          { key: "3", href: href({ view: "3" }), label: STAGE_NAMES[3][lang], count: filtered("3").length },
+          { key: "cert", href: href({ view: "cert" }), label: t("certificates"), count: filtered("cert").length },
         ]}
       />
 
-      {blocks.length === 0 && <Empty icon={UsersRound}>{t("nothingHere")}</Empty>}
-      <div className="space-y-5">
-        {blocks.map(({ group, members }) => (
-          <GroupBlock key={group?.id ?? "none"} group={group} members={members} />
-        ))}
-      </div>
+      {list.length === 0 ? (
+        <Empty icon={UsersRound}>{t("nothingHere")}</Empty>
+      ) : (
+        <div className="animate-rise overflow-x-auto rounded-2xl border border-border bg-surface shadow-card">
+          <table className="min-w-[1500px] text-sm">
+            <thead className="bg-surface-2/60">
+              <tr>
+                <th>{F.serial[lang]}</th>
+                <th>{F.name[lang]}</th>
+                <th>{F.islamDate[lang]}</th>
+                <th>{F.city[lang]}</th>
+                <th>{F.nationality[lang]}</th>
+                <th>{F.language[lang]}</th>
+                <th>{F.gender[lang]}</th>
+                <th>{F.caller[lang]}</th>
+                <th>{F.follower[lang]}</th>
+                <th>{F.workplace[lang]}</th>
+                <th>{F.profession[lang]}</th>
+                <th>{F.iqama[lang]}</th>
+                <th>{F.phone[lang]}</th>
+                <th>{F.sponsorName[lang]}</th>
+                <th>{F.sponsorPhone[lang]}</th>
+                <th>{F.status[lang]}</th>
+                <th>{F.contactMethod[lang]}</th>
+                <th>{F.lessons[lang]}</th>
+                <th>{F.certificate[lang]}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((b) => {
+                const m = b.muslim!;
+                const shown = canSeeName(db, user, b);
+                return (
+                  <tr key={b.id}>
+                    <td className="num text-muted">{m.serial}</td>
+                    <td className="font-medium whitespace-nowrap">
+                      <Link href={`/beneficiaries/${b.id}`} className="hover:text-brand" dir="auto">
+                        {displayName(db, user, b)}
+                      </Link>
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <div>{formatHijri(m.islamDate, lang)}</div>
+                      <div className="text-xs text-muted">{formatGregorian(m.islamDate, lang)}</div>
+                    </td>
+                    <td className="whitespace-nowrap">{b.city || "—"}</td>
+                    <td className="whitespace-nowrap">{b.nationality || "—"}</td>
+                    <td className="whitespace-nowrap">{b.languageLabel || "—"}</td>
+                    <td>{b.gender === "f" ? t("female") : t("male")}</td>
+                    <td className="whitespace-nowrap">{userName(b.introducedBy)}</td>
+                    <td className="whitespace-nowrap">{userName(b.assignedTo)}</td>
+                    <td className="whitespace-nowrap">{b.workplace || "—"}</td>
+                    <td className="whitespace-nowrap">{b.profession || "—"}</td>
+                    <td className="num" dir="ltr">
+                      {shown ? m.iqama || "—" : "•••"}
+                    </td>
+                    <td className="num whitespace-nowrap" dir="ltr">
+                      {shown ? b.phone : "•••"}
+                    </td>
+                    <td className="whitespace-nowrap">{m.sponsorName || "—"}</td>
+                    <td className="num whitespace-nowrap" dir="ltr">
+                      {m.sponsorPhone || "—"}
+                    </td>
+                    <td>
+                      <StatusChip value={m.status} />
+                    </td>
+                    <td className="whitespace-nowrap">{m.contactMethod || "—"}</td>
+                    <td className="whitespace-nowrap">
+                      <LessonGrid lessons={m.lessons} />
+                      <div className="num mt-1 text-[11px] text-muted">
+                        {lessonsDone(m)}/{MUSLIM_LESSONS} · {STAGE_NAMES[muslimStage(m)][lang]}
+                      </div>
+                    </td>
+                    <td className="text-center">{m.certificate ? <Award className="inline size-5 text-gold" aria-label={t("certificates")} /> : <span className="text-faint">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
-
-  function GroupBlock({ group, members }: { group: Group | null; members: Beneficiary[] }) {
-    const ownerUser = group ? db.users.find((u) => u.id === group.ownerId) : null;
-    return (
-      <Card
-        title={
-          group ? (
-            <Link href={`/groups/${group.id}`} className="hover:text-brand">
-              {group.name}
-            </Link>
-          ) : (
-            "—"
-          )
-        }
-        icon={UsersRound}
-        action={
-          <span className="flex items-center gap-2 text-xs text-muted">
-            {group && <Pill tone={group.kind === "learning" ? "violet" : "info"}>{group.kind === "learning" ? t("learningGroup") : t("dawahGroup")}</Pill>}
-            {ownerUser && <span className="hidden sm:inline">{ownerUser.name}</span>}
-          </span>
-        }
-        bodyClassName="px-0! pb-1!"
-      >
-        <ul className="divide-y divide-border border-t border-border">
-          {members.map((b) => {
-            const name = displayName(db, user, b);
-            const last = lastMessage(db, b.id);
-            const waiting = awaitingReply(db, b);
-            const learner = b.stage === "muslim" ? learnerState(db, b, now) : null;
-            const actable = canAct(db, user, b);
-            return (
-              <li key={b.id} className="flex items-center gap-3 px-5 py-2.5 hover:bg-surface-2/40">
-                <Avatar name={name} size="sm" locked={name !== b.name} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <PersonName name={name} href={`/beneficiaries/${b.id}`} />
-                    <StageBadge stage={b.stage} lang={lang} />
-                    {learner && <LevelBadge level={learner.level} label={t(learner.level)} />}
-                    {!actable && <Pill>{t("readOnly")}</Pill>}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
-                    <span>{LANG_LABELS[b.language][lang]}</span>
-                    {learner && <LessonDots total={learner.total} events={learner.events} lessonIds={learner.lessons.map((l) => l.id)} />}
-                    <span className={cx(waiting && "font-medium text-wa")}>
-                      · {t("lastContact")} {last ? relTime(last.at, lang, now) : "—"}
-                    </span>
-                  </div>
-                </div>
-                {actable && <WhatsAppLink beneficiaryId={b.id} size="sm" />}
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
-    );
-  }
 }
-
-const STAGE_CLOSED = { ar: "مغلقة", en: "Closed" };

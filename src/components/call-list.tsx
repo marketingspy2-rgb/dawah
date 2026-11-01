@@ -130,7 +130,7 @@ export function CallList({ items, ctx, showAll }: { items: CallItem[]; ctx: Ctx;
         <Empty icon={CheckCircle2}>{ctx.t("allCaughtUp")}</Empty>
       )}
       {!showAll && todo.length > LIMIT && (
-        <Link href="/?all=1" className="mt-2 inline-block text-sm font-medium text-brand hover:underline">
+        <Link href="/today?all=1" className="mt-2 inline-block text-sm font-medium text-brand hover:underline">
           {ctx.t("showAll", { n: todo.length })}
         </Link>
       )}
