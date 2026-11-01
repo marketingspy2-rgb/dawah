@@ -22,8 +22,10 @@ import {
 } from "@/lib/logic";
 import { applyImport, guessBeneficiarySender, parseWhatsAppExport, stageShare, textFromFile } from "@/lib/chat-import";
 import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
-import type { Beneficiary, DB, Gender, Lang, Lesson, Message, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
-import { LANGS, STAGES, TOUCH_KINDS } from "@/lib/types";
+import { addDays, fromHijri, isoDay } from "@/lib/hijri";
+import { CONVERTED, DEFAULT_RECONTACT_DAYS, FOLLOWUP_LABELS, applyHidayaLog, emptyHidaya, emptyMuslim, langCodeFor, langCodeOf, nextSerial, recontactDays } from "@/lib/programs";
+import type { Beneficiary, DB, HidayaFollowup, Lang, Lesson, Message, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
+import { HIDAYA_FOLLOWUPS, LANGS, LIST_KEYS, MUSLIM_LESSONS, STAGES, TOUCH_KINDS } from "@/lib/types";
 
 function audit(db: DB, user: User | null, action: string, target: string) {
   db.audit.unshift({ id: newId("AU"), userId: user?.id ?? "beneficiary", action, target, at: new Date().toISOString() });
@@ -451,9 +453,8 @@ export async function changeStage(formData: FormData) {
     const now = new Date();
     b.stage = stage;
     b.stageHistory.push({ stage, at: now.toISOString() });
-    if (stage === "muslim" && !b.convertedAt) {
-      b.convertedAt = now.toISOString();
-      const result = handToTeacher(db, user, b);
+    if (stage === "muslim" && b.program !== "muslim") {
+      const result = convertToMuslim(db, user, b, isoDay(now));
       if (result) moved = { teacher: result.teacher.name, group: result.group.name };
     }
     audit(db, user, `stage:${stage}`, b.id);
@@ -506,64 +507,344 @@ export async function updateProfile(formData: FormData) {
   refresh();
 }
 
-export async function addBeneficiary(formData: FormData) {
+// ---------- The association's files: هداية and المسلم الجديد ----------
+
+const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
+
+/** Reads a date entered as Hijri day / month / year (fields `<name>_d`, `_m`, `_y`). */
+function readHijri(fd: FormData, name: string): string | null {
+  const d = Number(fd.get(`${name}_d`));
+  const m = Number(fd.get(`${name}_m`));
+  const y = Number(fd.get(`${name}_y`));
+  if (!d || !m || !y) return null;
+  return fromHijri(d, m, y) ?? fromHijri(d - 1, m, y);
+}
+
+/** Fields both sheets share. */
+function readCommon(fd: FormData, b: Beneficiary) {
+  const name = str(fd, "name");
+  if (name) b.name = name;
+  const phone = str(fd, "phone");
+  if (phone) b.phone = phone;
+  b.city = str(fd, "city");
+  b.workplace = str(fd, "workplace");
+  b.profession = str(fd, "profession");
+  b.nationality = str(fd, "nationality");
+  const languageLabel = str(fd, "languageLabel");
+  if (languageLabel) {
+    b.languageLabel = languageLabel;
+    b.language = langCodeFor(languageLabel, b.language);
+  }
+  const gender = str(fd, "gender");
+  if (gender === "m" || gender === "f") b.gender = gender;
+}
+
+function blankBeneficiary(db: DB, user: User, program: "hidaya" | "muslim"): Beneficiary {
+  const id = `B-${1000 + db.beneficiaries.length + 1}`;
+  const now = new Date().toISOString();
+  return {
+    id,
+    program,
+    city: "",
+    workplace: "",
+    profession: "",
+    nationality: "",
+    languageLabel: "",
+    hidaya: null,
+    muslim: null,
+    name: "",
+    alias: id,
+    gender: user.gender,
+    language: user.languages[0] ?? "hi",
+    country: "SA",
+    timezone: "Asia/Riyadh",
+    phone: "",
+    preferredHour: 19,
+    stage: program === "muslim" ? "muslim" : "new",
+    stageHistory: [{ stage: program === "muslim" ? "muslim" : "new", at: now }],
+    assignedTo: user.id,
+    introducedBy: null,
+    groupId: null,
+    sensitive: false,
+    background: "",
+    needs: "",
+    objections: [],
+    source: "",
+    createdAt: now,
+    convertedAt: program === "muslim" ? now : null,
+    summary: null,
+    optedOut: false,
+  };
+}
+
+function staffPick(db: DB, user: User, id: string, role: StaffRole | null) {
+  const u = db.users.find((x) => x.id === id && (role ? x.role === role : x.role === "caller" || x.role === "teacher"));
+  if (!u) return null;
+  if (user.role === "admin" || u.id === user.id) return u;
+  if (user.role === "supervisor" && u.teamId === user.teamId) return u;
+  return null;
+}
+
+function duplicateOf(db: DB, phone: string, except?: string) {
+  const digits = (s: string) => s.replace(/\D/g, "").replace(/^(966|0)/, "");
+  const p = digits(phone);
+  return p.length >= 7 ? db.beneficiaries.find((x) => x.id !== except && digits(x.phone) === p) : undefined;
+}
+
+export async function addHidaya(formData: FormData) {
   const user = await requireUser();
-  const name = String(formData.get("name") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-  const language = String(formData.get("language")) as Lang;
-  const gender = String(formData.get("gender")) as Gender;
-  if (!name || !phone || !LANGS.includes(language)) return;
-  const digits = (s: string) => s.replace(/\D/g, "");
-  const dup = readDb().beneficiaries.find((b) => digits(b.phone) === digits(phone));
-  if (dup) redirect(`/beneficiaries/new?dup=${encodeURIComponent(dup.sensitive ? dup.alias : dup.name)}`);
-  let newBenId = "";
-  let assigneeName = "";
+  if (!str(formData, "name")) return;
+  const dup = duplicateOf(readDb(), str(formData, "phone"));
+  if (dup) redirect(`/hidaya/new?dup=${encodeURIComponent(dup.sensitive ? dup.alias : dup.name)}&dupId=${dup.id}`);
+  let id = "";
   await mutate((db) => {
-    const country = guessCountryFromPhone(phone);
-    // A caller keeps the case only when language and gender match; otherwise it goes to the best match.
-    const selfFits = user.role === "caller" && user.gender === gender && user.languages.includes(language);
-    const assignee =
-      (selfFits ? user : suggestAssignee(db, { language, gender }, "caller", [], user.teamId)) ??
-      db.users.find((u) => u.role === "caller" && u.gender === gender && u.languages.includes(language)) ??
-      db.users.find((u) => u.role === "caller" && u.languages.includes(language))!;
-    assigneeName = assignee.name;
-    const now = new Date().toISOString();
-    newBenId = `B-${1000 + db.beneficiaries.length + 1}`;
-    const group = groupForMember(db, assignee.id, "dawah", language);
-    db.beneficiaries.push({
-      id: newBenId,
-      name,
-      alias: newBenId,
-      gender,
-      language,
-      country: country?.code ?? "",
-      timezone: country?.tz ?? "UTC",
-      phone,
-      preferredHour: 19,
-      stage: "new",
-      stageHistory: [{ stage: "new", at: now }],
-      assignedTo: assignee.id,
-      introducedBy: null,
-      groupId: group?.id ?? null,
-      sensitive: formData.get("sensitive") === "on",
-      background: String(formData.get("background") ?? ""),
-      needs: "",
-      objections: [],
-      source: String(formData.get("source") ?? ""),
-      createdAt: now,
-      convertedAt: null,
-      summary: null,
-      optedOut: false,
-    });
-    db.assignments.push({ id: newId("A"), beneficiaryId: newBenId, fromId: null, toId: assignee.id, byId: user.id, reason: "إسناد أولي", at: now });
-    db.tasks.push({ id: newId("TK"), beneficiaryId: newBenId, assigneeId: assignee.id, title: "أول تواصل", kind: "first_contact", due: new Date(Date.now() + 4 * HOUR).toISOString(), createdAt: now, doneAt: null });
-    audit(db, user, "add_beneficiary", newBenId);
+    const b = blankBeneficiary(db, user, "hidaya");
+    readCommon(formData, b);
+    const owner = staffPick(db, user, str(formData, "assignedTo"), "caller") ?? (user.role === "caller" ? user : suggestAssignee(db, b, "caller", [], user.teamId) ?? user);
+    b.assignedTo = owner.id;
+    if (owner.languages.length && !langCodeOf(b.languageLabel)) b.language = owner.languages[0];
+    b.hidaya = emptyHidaya(nextSerial(db, "hidaya"));
+    readHidayaFields(formData, b, user);
+    b.hidaya.firstContact = readHijri(formData, "firstContact") ?? b.hidaya.firstContact;
+    b.groupId = groupForMember(db, owner.id, "dawah", b.language)?.id ?? null;
+    db.beneficiaries.push(b);
+    db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId: null, toId: owner.id, byId: user.id, reason: "إسناد أولي", at: b.createdAt });
+    id = b.id;
+    audit(db, user, "add_hidaya", b.id);
   });
   refresh();
-  const created = readDb().beneficiaries.find((b) => b.id === newBenId)!;
-  // A caller who handed the case to someone else can no longer open it, so show where it went.
-  if (canOpen(readDb(), user, created)) redirect(`/beneficiaries/${newBenId}`);
-  redirect(`/beneficiaries?added=${encodeURIComponent(name)}&to=${encodeURIComponent(assigneeName)}`);
+  redirect(`/hidaya/${id}?added=1`);
+}
+
+function readHidayaFields(fd: FormData, b: Beneficiary, user: User) {
+  const h = b.hidaya!;
+  if (fd.has("source")) h.source = str(fd, "source");
+  if (fd.has("result") && h.result !== CONVERTED) h.result = str(fd, "result");
+  if (fd.has("religion")) h.religion = str(fd, "religion");
+  if (fd.has("doubts")) h.doubts = str(fd, "doubts");
+  if (fd.has("interests")) h.interests = str(fd, "interests");
+  if (fd.has("visits")) h.visits = Math.max(0, Math.round(Number(fd.get("visits")) || 0));
+  if (fd.has("followupForm")) for (const k of HIDAYA_FOLLOWUPS) h.followup[k] = fd.get(`f_${k}`) === "on";
+  if (fd.has("category")) setCategory(h, str(fd, "category"), user);
+}
+
+function setCategory(h: NonNullable<Beneficiary["hidaya"]>, value: string, user: User) {
+  if (value === h.category) return;
+  h.category = value;
+  if (value) h.categoryHistory.push({ value, at: new Date().toISOString(), by: user.id });
+}
+
+export async function updateHidaya(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "beneficiaryId");
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (!b.hidaya) return;
+    readCommon(formData, b);
+    readHidayaFields(formData, b, user);
+    if (formData.has("firstContact_y")) b.hidaya.firstContact = readHijri(formData, "firstContact");
+    if (formData.has("lastContact_y")) b.hidaya.lastContact = readHijri(formData, "lastContact");
+    if (formData.has("nextContact_y")) b.hidaya.nextContact = readHijri(formData, "nextContact");
+    const owner = formData.has("assignedTo") ? staffPick(db, user, str(formData, "assignedTo"), null) : null;
+    if (owner && owner.id !== b.assignedTo && b.program === "hidaya") {
+      db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId: b.assignedTo, toId: owner.id, byId: user.id, reason: "تغيير الداعية المتابع", at: new Date().toISOString() });
+      b.assignedTo = owner.id;
+    }
+    audit(db, user, "update_hidaya", b.id);
+  });
+  refresh();
+  await backWith({ saved: 1 }, `/hidaya/${id}`);
+}
+
+/** Classification only, from the file header or the follow-up list. */
+export async function setHidayaCategory(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "beneficiaryId");
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (b.hidaya) setCategory(b.hidaya, str(formData, "category"), user);
+  });
+  refresh();
+}
+
+/** One contact: a call, books, a visit or a gift, with an optional note and the next date. */
+export async function logHidaya(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "beneficiaryId");
+  const kind = str(formData, "kind") as HidayaFollowup;
+  if (!HIDAYA_FOLLOWUPS.includes(kind)) return;
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (!b.hidaya) return;
+    const now = new Date();
+    const day = isoDay(now);
+    const note = str(formData, "note");
+    db.hidayaLogs.push({ id: newId("HL"), beneficiaryId: b.id, userId: user.id, kind, at: now.toISOString(), note });
+    applyHidayaLog(db, b, kind, day);
+    const result = str(formData, "result");
+    if (result && b.hidaya.result !== CONVERTED) b.hidaya.result = result;
+    const next = readHijri(formData, "nextContact");
+    b.hidaya.nextContact = next ?? (b.hidaya.nextContact && b.hidaya.nextContact > day ? b.hidaya.nextContact : addDays(day, recontactDays(db, b.hidaya.category)));
+    if (note) db.notes.push({ id: newId("N"), beneficiaryId: b.id, authorId: user.id, text: `${FOLLOWUP_LABELS[kind].ar}: ${note}`, at: now.toISOString(), needsContact: false });
+    // A contact settles today's follow-up tasks for this person.
+    const eod = endOfToday(now);
+    db.tasks.forEach((t) => {
+      if (t.beneficiaryId === b.id && !t.doneAt && new Date(t.due).getTime() <= eod) t.doneAt = now.toISOString();
+    });
+    audit(db, user, `hidaya:${kind}`, b.id);
+  });
+  refresh();
+  await backWith({ logged: kind }, `/hidaya/${id}`);
+}
+
+export async function undoHidayaLog(formData: FormData) {
+  const user = await requireUser();
+  const logId = str(formData, "logId");
+  await mutate((db) => {
+    const log = db.hidayaLogs.find((l) => l.id === logId);
+    if (!log || log.userId !== user.id || Date.now() - new Date(log.at).getTime() > 10 * 60_000) return;
+    db.hidayaLogs = db.hidayaLogs.filter((l) => l.id !== logId);
+    const b = db.beneficiaries.find((x) => x.id === log.beneficiaryId);
+    if (!b?.hidaya) return;
+    if (log.kind === "visit") b.hidaya.visits = Math.max(0, b.hidaya.visits - 1);
+    const rest = db.hidayaLogs.filter((l) => l.beneficiaryId === b.id);
+    b.hidaya.followup[log.kind] = rest.some((l) => l.kind === log.kind);
+    b.hidaya.lastContact = rest.length ? isoDay(rest[rest.length - 1].at) : null;
+  });
+  refresh();
+}
+
+/** Embraced Islam: the هداية file stays with the result «أسلم» and a new Muslim file opens. */
+function convertToMuslim(db: DB, user: User, b: Beneficiary, islamDay: string) {
+  const now = new Date();
+  b.program = "muslim";
+  if (b.stage !== "muslim") {
+    b.stage = "muslim";
+    b.stageHistory.push({ stage: "muslim", at: now.toISOString() });
+  }
+  b.convertedAt = b.convertedAt ?? now.toISOString();
+  if (b.hidaya) b.hidaya.result = CONVERTED;
+  if (!b.muslim) b.muslim = emptyMuslim(nextSerial(db, "muslim"), islamDay);
+  else b.muslim.islamDate = islamDay;
+  const result = handToTeacher(db, user, b);
+  if (!result && !b.introducedBy) b.introducedBy = b.assignedTo;
+  return result;
+}
+
+export async function convertHidaya(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "beneficiaryId");
+  const day = readHijri(formData, "islamDate") ?? isoDay();
+  let teacher = "";
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (b.program !== "hidaya") return;
+    const res = convertToMuslim(db, user, b, day);
+    teacher = res?.teacher.name ?? "";
+    audit(db, user, "convert", b.id);
+  });
+  refresh();
+  redirect(`/beneficiaries/${id}?converted=1${teacher ? `&movedTo=${encodeURIComponent(teacher)}` : ""}`);
+}
+
+/** A new Muslim added directly, without going through هداية. */
+export async function addMuslim(formData: FormData) {
+  const user = await requireUser();
+  if (!str(formData, "name")) return;
+  const dup = duplicateOf(readDb(), str(formData, "phone"));
+  if (dup) redirect(`/beneficiaries/new?dup=${encodeURIComponent(dup.sensitive ? dup.alias : dup.name)}&dupId=${dup.id}`);
+  let id = "";
+  await mutate((db) => {
+    const b = blankBeneficiary(db, user, "muslim");
+    readCommon(formData, b);
+    const follower = staffPick(db, user, str(formData, "assignedTo"), null) ?? suggestAssignee(db, b, "teacher", [], user.teamId) ?? user;
+    const caller = staffPick(db, user, str(formData, "introducedBy"), null) ?? db.users.find((u) => u.id === str(formData, "introducedBy")) ?? null;
+    b.assignedTo = follower.id;
+    b.introducedBy = caller?.id ?? null;
+    if (!langCodeOf(b.languageLabel) && follower.languages.length) b.language = follower.languages[0];
+    const day = readHijri(formData, "islamDate") ?? isoDay();
+    b.convertedAt = new Date(`${day}T12:00:00Z`).toISOString();
+    b.muslim = emptyMuslim(nextSerial(db, "muslim"), day);
+    readMuslimFields(formData, b);
+    b.groupId = groupForMember(db, follower.id, "learning", b.language)?.id ?? null;
+    db.beneficiaries.push(b);
+    db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId: null, toId: follower.id, byId: user.id, reason: "إسناد أولي", at: b.createdAt });
+    id = b.id;
+    audit(db, user, "add_muslim", b.id);
+  });
+  refresh();
+  redirect(`/beneficiaries/${id}?added=1`);
+}
+
+function readMuslimFields(fd: FormData, b: Beneficiary) {
+  const m = b.muslim!;
+  for (const k of ["iqama", "sponsorName", "sponsorPhone", "status", "contactMethod"] as const) if (fd.has(k)) m[k] = str(fd, k);
+  if (fd.has("lessonsForm")) {
+    m.lessons = m.lessons.map((_, i) => fd.get(`lesson_${i + 1}`) === "on");
+    m.certificate = fd.get("certificate") === "on";
+  }
+}
+
+export async function updateMuslim(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "beneficiaryId");
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (!b.muslim) return;
+    readCommon(formData, b);
+    readMuslimFields(formData, b);
+    if (formData.has("islamDate_y")) {
+      const day = readHijri(formData, "islamDate");
+      if (day) {
+        b.muslim.islamDate = day;
+        b.convertedAt = new Date(`${day}T12:00:00Z`).toISOString();
+      }
+    }
+    if (formData.has("introducedBy")) b.introducedBy = db.users.find((u) => u.id === str(formData, "introducedBy"))?.id ?? b.introducedBy;
+    const follower = formData.has("assignedTo") ? staffPick(db, user, str(formData, "assignedTo"), null) : null;
+    if (follower && follower.id !== b.assignedTo) {
+      db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId: b.assignedTo, toId: follower.id, byId: user.id, reason: "تغيير المتابع", at: new Date().toISOString() });
+      b.assignedTo = follower.id;
+    }
+    audit(db, user, "update_muslim", b.id);
+  });
+  refresh();
+  await backWith({ saved: 1 }, `/beneficiaries/${id}`);
+}
+
+/** Tick or untick one of the 18 lessons from the file. */
+export async function toggleMuslimLesson(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "beneficiaryId");
+  const n = Number(formData.get("lesson"));
+  await mutate((db) => {
+    const b = getBeneficiary(db, user, id);
+    if (!b.muslim) return;
+    if (n === 0) b.muslim.certificate = !b.muslim.certificate;
+    else if (n >= 1 && n <= MUSLIM_LESSONS) b.muslim.lessons[n - 1] = !b.muslim.lessons[n - 1];
+    if (b.muslim.lessons.some((x) => !x)) b.muslim.certificate = false;
+  });
+  refresh();
+}
+
+export async function saveLists(formData: FormData) {
+  const user = await requireUser();
+  if (user.role !== "admin") throw new Error("Not allowed");
+  await mutate((db) => {
+    for (const k of LIST_KEYS) {
+      const items = [...new Set(String(formData.get(k) ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean))];
+      if (items.length) db.settings.lists[k] = items;
+    }
+    const days: Record<string, number> = {};
+    for (const c of db.settings.lists.category) {
+      const n = Math.round(Number(formData.get(`days_${c}`)));
+      days[c] = Number.isFinite(n) && n >= 1 && n <= 365 ? n : db.settings.recontactDays[c] ?? DEFAULT_RECONTACT_DAYS;
+    }
+    db.settings.recontactDays = days;
+    audit(db, user, "lists", "settings");
+  });
+  refresh();
+  redirect("/lists?saved=1");
 }
 
 export async function importChat(formData: FormData) {

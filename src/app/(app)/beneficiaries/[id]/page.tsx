@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
-import { BookOpen, Check, CheckCircle2, ClipboardList, Eye, FileText, Hand, History, Import, MessageCircle, Sparkles, StickyNote, UserCog, UsersRound } from "lucide-react";
-import { addNote, addTask, changeStage, completeTask, importChat, markSummaryReviewed, moveToGroup, regenerateSummary, sendLessonNow, updateProfile } from "@/app/actions";
+import { notFound, redirect } from "next/navigation";
+import { Award, BookOpen, Check, CheckCircle2, ClipboardList, Eye, FileText, Hand, HeartHandshake, History, Import, MessageCircle, PencilLine, Sparkles, StickyNote, UserCog, UsersRound } from "lucide-react";
+import { addNote, addTask, completeTask, importChat, markSummaryReviewed, moveToGroup, regenerateSummary, sendLessonNow, toggleMuslimLesson, updateMuslim } from "@/app/actions";
+import { StatusChip } from "@/components/fields";
+import { CommonFields, MuslimFields } from "@/components/person-forms";
 import { PendingButton } from "@/components/client";
 import { PhoneSend } from "@/components/call-list";
 import { QuickLog } from "@/components/quick-log";
 import { LockIcon } from "@/components/icons";
-import { Avatar, Button, Card, Crumbs, Empty, Field, LevelBadge, Notice, Pill, RoleBadge, StageBadge, WhatsAppLink, WhatsAppSubmit, cx } from "@/components/ui";
-import { COUNTRIES } from "@/lib/content";
+import { Avatar, Button, Card, Crumbs, Empty, Field, LevelBadge, Notice, Pill, RoleBadge, WhatsAppLink, cx } from "@/components/ui";
 import { mutate, newId, readDb } from "@/lib/db";
-import { LANG_LABELS, STAGE_LABELS, TASK_KIND_LABELS, langDir, translator } from "@/lib/i18n";
-import { canAct, canOpen, canSeeName, displayName, formatDate, formatHour, groupOf, learnerState, localTime, messagesOf, nextScheduled, openTasks, relTime, teamOf } from "@/lib/logic";
+import { TASK_KIND_LABELS, langDir, translator } from "@/lib/i18n";
+import { formatGregorian, formatHijri } from "@/lib/hijri";
+import { F, STAGE_NAMES, lessonsDone, muslimStage } from "@/lib/programs";
+import { canAct, canOpen, canSeeName, displayName, formatDate, groupOf, learnerState, localTime, messagesOf, nextScheduled, openTasks, relTime, staffUnder, teamOf } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
-import { DAWAH_FUNNEL, STAGES } from "@/lib/types";
+import { MUSLIM_LESSONS } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +25,10 @@ export default async function BeneficiaryPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ imported?: string; noted?: string; unreadable?: string; movedTo?: string; group?: string; sent?: string }>;
+  searchParams: Promise<{ imported?: string; noted?: string; unreadable?: string; movedTo?: string; group?: string; sent?: string; converted?: string; added?: string; saved?: string }>;
 }) {
   const { id } = await params;
-  const { imported, noted, unreadable, movedTo, group: movedGroup, sent } = await searchParams;
+  const { imported, noted, unreadable, movedTo, group: movedGroup, sent, converted, added, saved } = await searchParams;
   const user = await requireUser();
   const lang = await getUiLang();
   const h = await headers();
@@ -33,6 +36,8 @@ export default async function BeneficiaryPage({
   const t = translator(lang);
   const found = readDb().beneficiaries.find((x) => x.id === id);
   if (!found || !canOpen(readDb(), user, found)) notFound();
+  // People still in هداية have their own file.
+  if (found.program === "hidaya" || !found.muslim) redirect(`/hidaya/${id}`);
 
   // Every opening of a file is recorded.
   await mutate((d) => {
@@ -45,7 +50,10 @@ export default async function BeneficiaryPage({
   const name = displayName(db, user, b);
   const showReal = canSeeName(db, user, b);
   const actable = canAct(db, user, b);
-  const country = COUNTRIES.find((c) => c.code === b.country);
+  const m = b.muslim!;
+  const stageNo = muslimStage(m);
+  const staffList = user.role === "admin" ? db.users.filter((u) => u.role === "teacher" || u.role === "caller") : staffUnder(db, user);
+  if (!staffList.some((u) => u.id === b.assignedTo)) staffList.unshift(db.users.find((u) => u.id === b.assignedTo)!);
   const owner = db.users.find((u) => u.id === b.assignedTo)!;
   const introducer = b.introducedBy ? db.users.find((u) => u.id === b.introducedBy) : null;
   const team = teamOf(db, owner);
@@ -63,19 +71,22 @@ export default async function BeneficiaryPage({
   const crumbs = [
     ...(user.role !== "caller" && user.role !== "teacher" && team ? [{ href: `/team`, label: team.name }] : []),
     ...(user.id !== owner.id && user.role !== "caller" ? [{ href: `/team/${owner.id}`, label: owner.name }] : []),
-    ...(group ? [{ href: `/groups/${group.id}`, label: group.name }] : [{ href: "/beneficiaries", label: t("beneficiaries") }]),
+    { href: "/beneficiaries", label: t("newMuslim") },
+    ...(group ? [{ href: `/groups/${group.id}`, label: group.name }] : []),
   ];
 
-  // The journey: the dawah stages, then learning, then steadiness.
-  const steps = [...DAWAH_FUNNEL.map((s) => STAGE_LABELS[s][lang]), t("journey3"), t("journey4")];
-  const reachedFunnel = Math.max(0, ...b.stageHistory.map((h) => DAWAH_FUNNEL.indexOf(h.stage)));
-  const current = learner ? (learner.completed >= learner.total && learner.total > 0 ? 6 : learner.completed > 0 ? 5 : 4) : reachedFunnel;
+  // The program: هداية, then the three stages of six lessons, then the certificate.
+  const steps = [t("hidaya"), STAGE_NAMES[1][lang], STAGE_NAMES[2][lang], STAGE_NAMES[3][lang], F.certificate[lang]];
+  const current = m.certificate ? 4 : stageNo;
 
   return (
     <>
       {noted && <Notice tone="ok">{t("savedAsNote")}</Notice>}
       {imported && (unreadable ? <Notice tone="warn">{t("unreadable")}</Notice> : <Notice tone="ok">{t("imported", { n: imported })}</Notice>)}
-      {movedTo && <Notice tone="ok">{t("movedToTeacher", { name: movedTo, group: movedGroup ?? "" })}</Notice>}
+      {converted && <Notice tone="ok">{t("convertedNotice")}</Notice>}
+      {added && <Notice tone="ok">{t("muslimAdded")}</Notice>}
+      {saved && <Notice tone="ok">{t("savedOk")}</Notice>}
+      {movedTo && <Notice tone="ok">{movedGroup ? t("movedToTeacher", { name: movedTo, group: movedGroup }) : t("movedToFollower", { name: movedTo })}</Notice>}
       {sent !== undefined && <Notice tone={sent === "0" ? "warn" : "ok"}>{sent === "0" ? t("nothingHere") : t("sentOk")}</Notice>}
 
       <Crumbs items={crumbs} />
@@ -93,7 +104,15 @@ export default async function BeneficiaryPage({
                   <LockIcon /> {t("sensitive")}
                 </Pill>
               )}
-              <StageBadge stage={b.stage} lang={lang} />
+              <span className="num rounded-lg bg-surface px-2 py-0.5 text-xs text-muted shadow-soft">
+                {F.serial[lang]} {m.serial}
+              </span>
+              <StatusChip value={m.status} />
+              {m.certificate && (
+                <Pill tone="gold">
+                  <Award className="size-3" /> {F.certificate[lang]}
+                </Pill>
+              )}
               {learner && <LevelBadge level={learner.level} label={t(learner.level)} />}
               {!actable && (
                 <Pill>
@@ -102,12 +121,22 @@ export default async function BeneficiaryPage({
               )}
             </div>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
-              <span>{LANG_LABELS[b.language][lang]}</span>
-              <span>{country?.[lang] ?? "—"}</span>
-              {showReal && <span dir="ltr">{b.phone}</span>}
+              {[b.nationality, b.languageLabel, b.gender === "f" ? t("female") : t("male"), b.city].filter(Boolean).map((x) => (
+                <span key={x}>{x}</span>
+              ))}
+              {showReal && (
+                <span dir="ltr" className="num">
+                  {b.phone}
+                </span>
+              )}
               <span>
-                {t("localTime")} <span className="font-medium text-text">{localTime(b.timezone, lang)}</span>
+                {F.islamDate[lang]}: <span className="font-medium text-text">{formatHijri(m.islamDate, lang)}</span>
               </span>
+              {b.timezone !== "Asia/Riyadh" && (
+                <span>
+                  {t("localTime")} <span className="font-medium text-text">{localTime(b.timezone, lang)}</span>
+                </span>
+              )}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
               <span className="flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 shadow-soft">
@@ -119,9 +148,14 @@ export default async function BeneficiaryPage({
               </span>
               {introducer && (
                 <span className="flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 shadow-soft">
-                  <span className="text-muted">{t("introducedBy")}:</span>
+                  <span className="text-muted">{F.caller[lang]}:</span>
                   <span className="font-medium">{introducer.name}</span>
                 </span>
+              )}
+              {b.hidaya && (
+                <Link href={`/hidaya/${b.id}`} className="flex items-center gap-1.5 rounded-full bg-surface px-2.5 py-1 text-brand shadow-soft hover:underline">
+                  <HeartHandshake className="size-3.5" /> {t("hidayaFileLink")}
+                </Link>
               )}
             </div>
           </div>
@@ -142,8 +176,8 @@ export default async function BeneficiaryPage({
         {/* Journey */}
         <ol className="scrollbar-none flex items-start overflow-x-auto px-5 py-4" aria-label={t("journey")}>
           {steps.map((label, i) => {
-            const done = i < current || (i === current && i === 6);
-            const here = i === current && i !== 6;
+            const done = i < current || (i === current && i === 4);
+            const here = i === current && i !== 4;
             return (
               <li key={label} className="flex min-w-20 flex-1 flex-col items-center gap-1.5 text-center">
                 <div className="flex w-full items-center">
@@ -169,6 +203,57 @@ export default async function BeneficiaryPage({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-5">
+          <Card
+            title={t("lessons18")}
+            icon={BookOpen}
+            action={
+              <span className="num text-xs text-muted">
+                {lessonsDone(m)}/{MUSLIM_LESSONS} · {m.certificate ? F.certificate[lang] : STAGE_NAMES[stageNo][lang]}
+              </span>
+            }
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              {([1, 2, 3] as const).map((st) => (
+                <div key={st} className={cx("rounded-xl border p-3", !m.certificate && st === stageNo ? "border-gold/50 bg-gold-soft/40" : "border-border")}>
+                  <div className="mb-2 text-xs font-semibold text-muted">{STAGE_NAMES[st][lang]}</div>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {m.lessons.slice((st - 1) * 6, st * 6).map((done, i) => {
+                      const n = (st - 1) * 6 + i + 1;
+                      const cls = cx("num grid h-9 place-items-center rounded-lg text-sm font-semibold transition", done ? "bg-ok text-white" : "bg-surface-2 text-muted", actable && "hover:ring-2 hover:ring-brand/40");
+                      return actable ? (
+                        <form key={n} action={toggleMuslimLesson}>
+                          <input type="hidden" name="beneficiaryId" value={b.id} />
+                          <input type="hidden" name="lesson" value={n} />
+                          <PendingButton className={cx(cls, "w-full")} title={`${t("lessonN", { n })}`} aria-pressed={done}>
+                            {n}
+                          </PendingButton>
+                        </form>
+                      ) : (
+                        <span key={n} className={cls}>
+                          {n}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface-2/60 px-3 py-2.5 text-sm">
+              <span className="flex items-center gap-2">
+                <Award className={cx("size-5", m.certificate ? "text-gold" : "text-faint")} />
+                {m.certificate ? t("certificateDone") : lessonsDone(m) === MUSLIM_LESSONS ? t("certificateReady") : t("certificateAfter", { n: MUSLIM_LESSONS - lessonsDone(m) })}
+              </span>
+              {actable && lessonsDone(m) === MUSLIM_LESSONS && (
+                <form action={toggleMuslimLesson}>
+                  <input type="hidden" name="beneficiaryId" value={b.id} />
+                  <input type="hidden" name="lesson" value={0} />
+                  <PendingButton className={cx("rounded-full px-4 py-1.5 text-sm font-semibold", m.certificate ? "border border-border-strong bg-surface" : "bg-gold text-white")}>{m.certificate ? t("certificateUndo") : t("certificateGive")}</PendingButton>
+                </form>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-muted">{t("lessons18Hint")}</p>
+          </Card>
+
           {actable && (
             <Card title={t("quickLog")} icon={Hand} action={<span className="hidden text-xs text-muted sm:block">{t("quickLogHint")}</span>}>
               <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} />
@@ -368,22 +453,7 @@ export default async function BeneficiaryPage({
                     {t("save")}
                   </Button>
                 </form>
-                <form action={changeStage} className="flex items-end gap-2">
-                  <input type="hidden" name="beneficiaryId" value={b.id} />
-                  <Field label={t("changeStage")} className="flex-1">
-                    <select key={b.stage} name="stage" defaultValue={b.stage}>
-                      {STAGES.map((s) => (
-                        <option key={s} value={s}>
-                          {STAGE_LABELS[s][lang]}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Button size="md" variant="secondary">
-                    {t("save")}
-                  </Button>
-                </form>
-                {b.stage !== "muslim" && <p className="text-xs text-muted">{t("muslimMovesHint")}</p>}
+
               </div>
             </Card>
           )}
@@ -429,56 +499,41 @@ export default async function BeneficiaryPage({
             )}
           </Card>
 
-          <Card title={t("profile")} icon={UserCog}>
-            {actable ? (
-              <form action={updateProfile} className="space-y-3 text-sm">
-                <input type="hidden" name="beneficiaryId" value={b.id} />
-                <Field label={t("background")}>
-                  <textarea name="background" rows={2} defaultValue={b.background} />
-                </Field>
-                <Field label={t("needs")}>
-                  <textarea name="needs" rows={2} defaultValue={b.needs} />
-                </Field>
-                <Field label={t("objections")}>
-                  <input name="objections" defaultValue={b.objections.join(lang === "ar" ? "، " : ", ")} />
-                </Field>
-                <Field label={t("preferredHour")}>
-                  <select name="preferredHour" defaultValue={b.preferredHour}>
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <option key={h} value={h}>
-                        {formatHour(h, lang)}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <label className="flex items-start gap-2">
-                  <input type="checkbox" name="sensitive" defaultChecked={b.sensitive} className="mt-1" />
-                  <span>
-                    <span className="font-medium">{t("sensitive")}</span>
-                    <span className="block text-xs text-muted">{t("sensitiveHint")}</span>
-                  </span>
-                </label>
-                <div className="text-xs text-muted">
-                  {t("source")}: {b.source || "—"}
+          <Card title={t("muslimSheet")} icon={UserCog}>
+            <dl className="space-y-2.5 text-sm">
+              {(
+                [
+                  [F.islamDate[lang], `${formatHijri(m.islamDate, lang)} · ${formatGregorian(m.islamDate, lang)}`],
+                  [F.caller[lang], introducer?.name ?? ""],
+                  [F.follower[lang], owner.name],
+                  [F.workplace[lang], b.workplace],
+                  [F.profession[lang], b.profession],
+                  [F.iqama[lang], showReal ? m.iqama : "•••"],
+                  [F.sponsorName[lang], m.sponsorName],
+                  [F.sponsorPhone[lang], m.sponsorPhone],
+                  [F.contactMethod[lang], m.contactMethod],
+                ] as [string, string][]
+              ).map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-3">
+                  <dt className="text-muted">{k}</dt>
+                  <dd className="text-end font-medium" dir="auto">
+                    {v || "—"}
+                  </dd>
                 </div>
-                <Button size="sm" variant="secondary">
-                  {t("save")}
-                </Button>
-              </form>
-            ) : (
-              <dl className="space-y-2 text-sm">
-                {[
-                  [t("background"), b.background],
-                  [t("needs"), b.needs],
-                  [t("objections"), b.objections.join("، ")],
-                  [t("source"), b.source],
-                ].map(([k, v]) => (
-                  <div key={k}>
-                    <dt className="text-xs text-muted">{k}</dt>
-                    <dd>{v || "—"}</dd>
-                  </div>
-                ))}
-              </dl>
+              ))}
+            </dl>
+            {actable && (
+              <details className="mt-4 border-t border-border pt-3">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-brand">
+                  <PencilLine className="size-4" /> {t("editData")}
+                </summary>
+                <form action={updateMuslim} className="mt-4 space-y-3">
+                  <input type="hidden" name="beneficiaryId" value={b.id} />
+                  <CommonFields b={b} ctx={{ db, lang, t }} />
+                  <MuslimFields b={b} ctx={{ db, lang, t }} staff={staffList} user={user} />
+                  <Button>{t("save")}</Button>
+                </form>
+              </details>
             )}
           </Card>
 

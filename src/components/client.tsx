@@ -55,9 +55,9 @@ export function Composer({ placeholder, disabled, sendLabel, dir }: { placeholde
 }
 
 /** Icons are passed as rendered elements, since components can't cross to the client. */
-export function NavLink({ href, label, badge, dot, icon, tone = "dark" }: { href: string; label: string; badge?: number; dot?: boolean; icon: React.ReactNode; tone?: "dark" | "light" }) {
+export function NavLink({ href, label, badge, dot, icon, tone = "dark", exclude }: { href: string; label: string; badge?: number; dot?: boolean; icon: React.ReactNode; tone?: "dark" | "light"; exclude?: string[] }) {
   const pathname = usePathname();
-  const active = href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const active = href === "/" ? pathname === "/" : (pathname === href || pathname.startsWith(`${href}/`)) && !exclude?.some((x) => pathname.startsWith(x));
   const dark = tone === "dark";
   return (
     <Link

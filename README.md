@@ -3,6 +3,15 @@
 نسخة عرض لمنصة متعددة اللغات تخدم الإدارة والمشرفين والدعاة، وتغطي مرحلتين: الدعوة، ثم تعليم المسلم الجديد ومتابعته.
 البيانات كلها تجريبية، وواتساب محاكى داخل المنصة (لا تُرسل أي رسالة حقيقية).
 
+## البرنامجان
+
+الواجهة الرئيسية مربعان فقط:
+
+- **هداية:** من لا يزال التواصل معهم قائمًا، بخانات جدول الجمعية نفسها (مصدر التعرّف، أول وآخر تواصل بالهجري، المتابعة: اتصال وكتب وزيارة وهدية، عدد الزيارات، النتيجة). لكل حالة تصنيف (مشكك، صعب الهداية، قريب من الهداية…) وموعد تواصل قادم، وصفحة «إعادة التواصل» تجمع المتأخرين، وصفحة «المؤشرات» فيها عدد من أسلموا شهريًا وأداء كل داعية. من يُسلم ينتقل بزر واحد إلى المسلم الجديد.
+- **المسلم الجديد:** بخانات جدول الجمعية (تاريخ الإسلام، الإقامة، الكفيل، الحالة، الدروس الثمانية عشر، الشهادة)، وتحته بقية أقسام المنصة: المحادثات والمجموعات والدروس والتقارير.
+
+قوائم الاختيار في الجدولين وأيام إعادة التواصل لكل تصنيف تعدّلها الإدارة من صفحة «القوائم».
+
 ## كيف تعمل المنصة
 
 **الهيكل:** الإدارة ← مشرف لكل فريق ← دعاة ومعلمون ← مجموعات ← مستفيدون. كل شخص يرى ملفات من تحته فقط، والمشرف يتعامل مع كل ملفات فريقه.
@@ -89,6 +98,8 @@ npx wrangler deploy    # نشر يدوي (يتطلب wrangler login أو CLOUDFL
 # Dawah platform (demo)
 
 A demo of a multilingual platform for management, supervisors, callers and teachers, covering outreach and then teaching and following up new Muslims. Each supervisor leads callers and teachers, each of whom leads groups of beneficiaries. Learners never log in: lessons reach them on WhatsApp as a one-page link with a voice note, one idea, a yes/no check and one action for the day. All data is fake and WhatsApp is simulated.
+
+**Two programs:** the home page has two boxes. هداية holds people still being talked to, with the association's sheet columns, a classification per case, a re-contact page and an insights page (conversions per month, caller performance). Someone who embraces Islam moves with one button to المسلم الجديد, which uses the association's second sheet (18 lessons, certificate) and holds the rest of the platform.
 
 **Run locally** (Node.js 22+): `npm install && npm run build && npm start`, then open http://localhost:3000. Reset demo data with `npm run reset`. There are no passwords: pick any user on the login page.
 

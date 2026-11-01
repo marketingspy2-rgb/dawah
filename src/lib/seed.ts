@@ -1,6 +1,8 @@
 import { BENEFICIARY_LINES, CALLER_LINES, COUNTRIES, TEMPLATES, fillTemplate } from "./content";
 import { SEED_LESSONS, TRACKS } from "./curriculum";
 import { DAY, HOUR, nextSlot } from "./time";
+import { addDays, isoDay } from "./hijri";
+import { CONVERTED, DEFAULT_LISTS, DEFAULT_RECONTACT, LANG_LABEL_FOR, applyHidayaLog, emptyHidaya, emptyMuslim, langCodeFor } from "./programs";
 import type {
   Assignment,
   Beneficiary,
@@ -8,6 +10,8 @@ import type {
   DB,
   Gender,
   Group,
+  HidayaFollowup,
+  HidayaLog,
   Lang,
   LessonEvent,
   Message,
@@ -23,7 +27,7 @@ import type {
   Weekday,
 } from "./types";
 
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export function defaultSettings(): Settings {
   return {
@@ -36,15 +40,14 @@ export function defaultSettings(): Settings {
     },
     rulesUpdatedAt: null,
     rulesUpdatedBy: null,
+    lists: structuredClone(DEFAULT_LISTS),
+    recontactDays: { ...DEFAULT_RECONTACT },
   };
 }
 
 /** Brings saved demo data from an older version up to date without losing what people entered. */
 export function migrate(db: DB): DB | null {
-  if (db.version === 3) {
-    db.settings = defaultSettings();
-    db.version = 4;
-  }
+  // Version 5 rebuilt the files on the association's two programs: older demo data starts fresh.
   return db.version === DB_VERSION ? db : null;
 }
 
@@ -116,27 +119,27 @@ export const PERSONAL_NUMBER_STAFF = new Set(["U-C01", "U-C04", "U-C06", "U-C08"
 
 const STAFF: StaffSeed[] = [
   // Team 1: Spanish and French, brothers
-  { id: "U-C01", name: "Ibrahim Garcia", role: "caller", gender: "m", languages: ["es"], teamId: "T1", quality: 0.6 },
-  { id: "U-C02", name: "Hamza Martinez", role: "caller", gender: "m", languages: ["es"], teamId: "T1", quality: 1.3 },
-  { id: "U-C04", name: "Omar Diallo", role: "caller", gender: "m", languages: ["fr", "es"], teamId: "T1", quality: 1.0 },
-  { id: "U-T01", name: "Yusuf Hernandez", role: "teacher", gender: "m", languages: ["es"], teamId: "T1", quality: 0.8 },
-  { id: "U-T02", name: "Moussa Camara", role: "teacher", gender: "m", languages: ["fr"], teamId: "T1", quality: 1.0 },
+  { id: "U-C01", name: "مجيب", role: "caller", gender: "m", languages: ["es"], teamId: "T1", quality: 0.6 },
+  { id: "U-C02", name: "منصور", role: "caller", gender: "m", languages: ["es"], teamId: "T1", quality: 1.3 },
+  { id: "U-C04", name: "عبدالرحمن", role: "caller", gender: "m", languages: ["fr", "es"], teamId: "T1", quality: 1.0 },
+  { id: "U-T01", name: "زبير", role: "teacher", gender: "m", languages: ["es"], teamId: "T1", quality: 0.8 },
+  { id: "U-T02", name: "السبيل", role: "teacher", gender: "m", languages: ["fr"], teamId: "T1", quality: 1.0 },
   // Team 2: Asia, brothers
-  { id: "U-C06", name: "Abdulrahman Reyes", role: "caller", gender: "m", languages: ["fil"], teamId: "T2", quality: 0.9 },
-  { id: "U-C08", name: "Bilal Ahmed", role: "caller", gender: "m", languages: ["ur", "hi"], teamId: "T2", quality: 1.1 },
-  { id: "U-C10", name: "Rashid Hossain", role: "caller", gender: "m", languages: ["bn"], teamId: "T2", quality: 1.6 },
-  { id: "U-T03", name: "Musa Bautista", role: "teacher", gender: "m", languages: ["fil"], teamId: "T2", quality: 1.2 },
-  { id: "U-T04", name: "Imran Khan", role: "teacher", gender: "m", languages: ["hi", "ur"], teamId: "T2", quality: 1.0 },
-  { id: "U-T05", name: "Salman Uddin", role: "teacher", gender: "m", languages: ["bn"], teamId: "T2", quality: 0.9 },
+  { id: "U-C06", name: "حمدان", role: "caller", gender: "m", languages: ["fil"], teamId: "T2", quality: 0.9 },
+  { id: "U-C08", name: "شرف", role: "caller", gender: "m", languages: ["ur", "hi"], teamId: "T2", quality: 1.1 },
+  { id: "U-C10", name: "عبدالماجد", role: "caller", gender: "m", languages: ["bn"], teamId: "T2", quality: 1.6 },
+  { id: "U-T03", name: "الحريقي", role: "teacher", gender: "m", languages: ["fil"], teamId: "T2", quality: 1.2 },
+  { id: "U-T04", name: "عمر", role: "teacher", gender: "m", languages: ["hi", "ur"], teamId: "T2", quality: 1.0 },
+  { id: "U-T05", name: "سليمان", role: "teacher", gender: "m", languages: ["bn"], teamId: "T2", quality: 0.9 },
   // Team 3: women's section, all languages
-  { id: "U-C03", name: "Fatima Lopez", role: "caller", gender: "f", languages: ["es"], teamId: "T3", quality: 0.8 },
-  { id: "U-C05", name: "Khadija Traoré", role: "caller", gender: "f", languages: ["fr", "es"], teamId: "T3", quality: 0.7 },
-  { id: "U-C07", name: "Aisha Santos", role: "caller", gender: "f", languages: ["fil"], teamId: "T3", quality: 0.6 },
-  { id: "U-C11", name: "Nusrat Begum", role: "caller", gender: "f", languages: ["bn", "hi"], teamId: "T3", quality: 0.9 },
-  { id: "U-T06", name: "Maryam Cruz", role: "teacher", gender: "f", languages: ["fil"], teamId: "T3", quality: 1.0 },
-  { id: "U-T07", name: "Zainab Akhtar", role: "teacher", gender: "f", languages: ["hi", "ur"], teamId: "T3", quality: 0.8 },
-  { id: "U-T08", name: "Hafsa Rahman", role: "teacher", gender: "f", languages: ["bn"], teamId: "T3", quality: 0.7 },
-  { id: "U-T09", name: "Amina Ruiz", role: "teacher", gender: "f", languages: ["es", "fr"], teamId: "T3", quality: 0.9 },
+  { id: "U-C03", name: "ثناء", role: "caller", gender: "f", languages: ["es"], teamId: "T3", quality: 0.8 },
+  { id: "U-C05", name: "رحمة", role: "caller", gender: "f", languages: ["fr", "es"], teamId: "T3", quality: 0.7 },
+  { id: "U-C07", name: "مريم", role: "caller", gender: "f", languages: ["fil"], teamId: "T3", quality: 0.6 },
+  { id: "U-C11", name: "هيا", role: "caller", gender: "f", languages: ["bn", "hi"], teamId: "T3", quality: 0.9 },
+  { id: "U-T06", name: "أسماء", role: "teacher", gender: "f", languages: ["fil"], teamId: "T3", quality: 1.0 },
+  { id: "U-T07", name: "هند", role: "teacher", gender: "f", languages: ["hi", "ur"], teamId: "T3", quality: 0.8 },
+  { id: "U-T08", name: "سارة", role: "teacher", gender: "f", languages: ["bn"], teamId: "T3", quality: 0.7 },
+  { id: "U-T09", name: "لطيفة", role: "teacher", gender: "f", languages: ["es", "fr"], teamId: "T3", quality: 0.9 },
 ];
 
 /** Stages of each caller's four open conversations. */
@@ -238,6 +241,14 @@ export function createSeed(now = new Date()): DB {
     const id = `B-${1000 + beneficiaries.length + 1}`;
     const b: Beneficiary = {
       id,
+      program: stage === "muslim" ? "muslim" : "hidaya",
+      city: "",
+      workplace: "",
+      profession: "",
+      nationality: country.code === "BD" ? "البنقالية" : country.code === "PK" ? "باكستان" : country.ar,
+      languageLabel: LANG_LABEL_FOR[lang],
+      hidaya: null,
+      muslim: null,
       name: takeName(lang, gender),
       alias: id,
       gender,
@@ -462,6 +473,8 @@ export function createSeed(now = new Date()): DB {
   }
   touches.sort((a, b) => a.at.localeCompare(b.at));
 
+  const hidayaLogs = associationFiles({ r, pick, between, nowMs, iso, nextId, beneficiaries, tasks, assignments, notes, callers, teachers, supervisorOf });
+
   return {
     version: DB_VERSION,
     seededAt,
@@ -477,6 +490,7 @@ export function createSeed(now = new Date()): DB {
     events,
     assignments,
     touches,
+    hidayaLogs,
     imports,
     shares: [],
     settings: defaultSettings(),
@@ -484,3 +498,275 @@ export function createSeed(now = new Date()): DB {
   };
 }
 
+
+// ---------- The association's two programs ----------
+
+const CITIES = ["عنيزة", "عنيزة", "عنيزة", "عنيزة", "بريدة", "الرس", "البكيرية"];
+const WORKPLACES = ["مزرعة نخيل", "مصنع تمور", "فندق بودل", "محطة وقود", "مستشفى عنيزة", "ورشة سيارات", "شركة نظافة", "سوق الخضار", "مطعم", "المدينة الصناعية", "مغسلة ملابس", "شركة مقاولات"];
+const PROFESSIONS = ["عامل", "سائق", "مزارع", "طباخ", "ممرض", "فني صيانة", "عامل نظافة", "حلاق", "مهندس", "راعي غنم", "كهربائي", "نجار", "محاسب", "عاملة منزلية"];
+const RELIGIONS = ["مسيحي", "مسيحي", "هندوسي", "هندوسي", "بوذي", "سيخي", "لا ديني"];
+const DOUBTS = ["يسأل عن الثالوث وطبيعة المسيح", "يخاف من رفض أسرته", "يرى أن كل الأديان واحدة", "صورة الإسلام في الإعلام", "يسأل عن مكانة المرأة", "يتعلّق بعبادة الأصنام في قريته", "صعوبة الصلاة أثناء العمل"];
+const INTERESTS = ["يحب سماع القرآن", "يقرأ الكتب المترجمة", "يسأل عن الآخرة", "مهتم بسيرة النبي ﷺ", "يحب الحوار الهادئ", "يتأثر بأخلاق زملائه المسلمين"];
+const SPONSORS = ["مؤسسة النخيل الزراعية", "مصنع عنيزة للتمور", "شركة القصيم للمقاولات", "محمد العبدالله", "عبدالعزيز السليم", "شركة الخدمات الطبية"];
+
+/** Local residents found through the association's programs: they have Saudi numbers and Riyadh time. */
+const LOCAL_PEOPLE: { name: string; gender: Gender; nationality: string; language: string }[] = [
+  { name: "سنديف", gender: "m", nationality: "الهند", language: "هندي" },
+  { name: "تلندر", gender: "m", nationality: "النيبال", language: "نيبالي" },
+  { name: "كربال رام", gender: "m", nationality: "الهند", language: "هندي" },
+  { name: "راجو", gender: "m", nationality: "النيبال", language: "نيبالي" },
+  { name: "سوريش", gender: "m", nationality: "الهند", language: "تاميلي" },
+  { name: "بيكاش", gender: "m", nationality: "النيبال", language: "نيبالي" },
+  { name: "جوزيف", gender: "m", nationality: "كينيا", language: "انجليزي" },
+  { name: "روميو", gender: "m", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "أنيل", gender: "m", nationality: "سريلانكا", language: "سنهالي" },
+  { name: "موهان", gender: "m", nationality: "الهند", language: "كيرلا" },
+  { name: "ديفيد", gender: "m", nationality: "اوغندا", language: "انجليزي" },
+  { name: "سانجاي", gender: "m", nationality: "الهند", language: "هندي" },
+  { name: "ماريا", gender: "f", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "لمى", gender: "f", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "شانتي", gender: "f", nationality: "سريلانكا", language: "سنهالي" },
+  { name: "روزا", gender: "f", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "غريس", gender: "f", nationality: "كينيا", language: "انجليزي" },
+  { name: "بريا", gender: "f", nationality: "الهند", language: "تاميلي" },
+];
+
+/** New Muslims from earlier years, as the association's sheet keeps them. */
+const PAST_MUSLIMS: { name: string; gender: Gender; nationality: string; language: string }[] = [
+  { name: "عمر لاجوري", gender: "m", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "عبدالله راجيش", gender: "m", nationality: "الهند", language: "تلغو" },
+  { name: "يوسف بهادور", gender: "m", nationality: "النيبال", language: "نيبالي" },
+  { name: "إبراهيم كومار", gender: "m", nationality: "الهند", language: "هندي" },
+  { name: "خالد سانتوس", gender: "m", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "محمد أولوتشي", gender: "m", nationality: "كينيا", language: "انجليزي" },
+  { name: "بلال تيسفاي", gender: "m", nationality: "اثيوبيا", language: "امهري" },
+  { name: "عائشة ريس", gender: "f", nationality: "الفلبين", language: "تغالوغ" },
+  { name: "مريم بيريرا", gender: "f", nationality: "سريلانكا", language: "سنهالي" },
+  { name: "سلمان داس", gender: "m", nationality: "البنقالية", language: "بنقالي" },
+];
+
+type Ctx = {
+  r: () => number;
+  pick: <T>(arr: T[]) => T;
+  between: (a: number, b: number) => number;
+  nowMs: number;
+  iso: (ms: number) => string;
+  nextId: (prefix: string) => string;
+  beneficiaries: Beneficiary[];
+  tasks: Task[];
+  assignments: Assignment[];
+  notes: Note[];
+  callers: StaffSeed[];
+  teachers: StaffSeed[];
+  supervisorOf: (teamId: string) => string;
+};
+
+function associationFiles(c: Ctx): HidayaLog[] {
+  const { r, pick, between, nowMs, iso, nextId, beneficiaries } = c;
+  const logs: HidayaLog[] = [];
+  const today = isoDay(nowMs);
+  const saudiPhone = () => `05${Math.floor(10_000_000 + r() * 89_999_999)}`;
+  const lessonsUpTo = (n: number) => Array.from({ length: 18 }, (_, i) => i < n);
+  let hSerial = 0;
+  let mSerial = 0;
+
+  const fillCommon = (b: Beneficiary) => {
+    b.city = pick(CITIES);
+    b.workplace = pick(WORKPLACES);
+    b.profession = pick(PROFESSIONS);
+  };
+
+  /** A contact history in the last `spanDays`, which also ticks the follow-up boxes. */
+  const history = (b: Beneficiary, userId: string, count: number, spanDays: number, endMs = nowMs) => {
+    const kinds: HidayaFollowup[] = ["call", "call", "call", "visit", "visit", "books", "gift"];
+    const at: number[] = Array.from({ length: count }, () => endMs - between(0.2, spanDays) * DAY).sort((a, z) => a - z);
+    for (const ms of at) {
+      const kind = pick(kinds);
+      logs.push({ id: nextId("HL"), beneficiaryId: b.id, userId, kind, at: iso(ms), note: "" });
+    }
+    return at;
+  };
+
+  const category = (b: Beneficiary): string => {
+    if (b.stage === "learning") return "قريب من الهداية";
+    if (b.stage === "interested") return pick(["مهتم", "متردد"]);
+    if (b.stage === "contacted") return pick(["مشكك", "متردد", "صعب الهداية"]);
+    if (b.stage === "paused") return pick(["صعب الهداية", "رافض"]);
+    return "";
+  };
+
+  const hidayaFor = (b: Beneficiary, source: string, createdDay: string) => {
+    const h = emptyHidaya(++hSerial);
+    h.source = source;
+    h.firstContact = createdDay;
+    h.lastContact = null;
+    h.religion = pick(RELIGIONS);
+    if (b.stage !== "new") {
+      h.doubts = pick(DOUBTS);
+      h.interests = pick(INTERESTS);
+    }
+    b.hidaya = h;
+    return h;
+  };
+
+  const replay = (b: Beneficiary, userId: string, count: number, span: number, endMs = nowMs) => {
+    const before = logs.length;
+    history(b, userId, count, span, endMs);
+    const h = b.hidaya!;
+    h.firstContact = null;
+    for (const l of logs.slice(before)) applyHidayaLog({ settings: { recontactDays: DEFAULT_RECONTACT } } as DB, b, l.kind, isoDay(l.at));
+    if (!h.lastContact) h.lastContact = null;
+    h.firstContact = h.firstContact ?? isoDay(b.createdAt);
+  };
+
+  // Everyone the callers already talk to is a هداية case.
+  for (const b of beneficiaries) {
+    fillCommon(b);
+    const src = pick(DEFAULT_LISTS.source);
+    const h = hidayaFor(b, src, isoDay(b.createdAt));
+    if (b.program === "hidaya") {
+      const cat = category(b);
+      h.category = cat;
+      if (cat) h.categoryHistory = [{ value: cat, at: iso(nowMs - between(2, 25) * DAY), by: b.assignedTo }];
+      if (b.stage === "learning") h.categoryHistory.unshift({ value: pick(["مهتم", "متردد"]), at: iso(nowMs - between(30, 60) * DAY), by: b.assignedTo });
+      if (cat === "مهتم" && r() < 0.6) h.categoryHistory.unshift({ value: "مشكك", at: iso(nowMs - between(30, 70) * DAY), by: b.assignedTo });
+      if (b.stage !== "new") {
+        const span = Math.max(3, (nowMs - new Date(b.createdAt).getTime()) / DAY);
+        // Some go cold on purpose so "needs contact again" has people in it.
+        const cold = r() < 0.2;
+        replay(b, b.assignedTo, Math.floor(between(2, 9)), span, cold ? nowMs - between(16, 40) * DAY : nowMs);
+        h.result = b.stage === "paused" ? pick(["لم يستجب", "أخرى"]) : b.stage === "contacted" ? pick(["لم يستجب", "استجاب"]) : "استجاب";
+        h.nextContact = addDays(today, Math.floor(between(-2, 12)));
+      }
+    } else {
+      // Came through هداية, then embraced Islam.
+      replay(b, b.introducedBy ?? b.assignedTo, Math.floor(between(4, 9)), 40, new Date(b.convertedAt!).getTime());
+      h.result = CONVERTED;
+      h.category = "قريب من الهداية";
+      h.categoryHistory = [{ value: "قريب من الهداية", at: iso(new Date(b.convertedAt!).getTime() - 10 * DAY), by: b.introducedBy ?? b.assignedTo }];
+      const sinceDays = (nowMs - new Date(b.convertedAt!).getTime()) / DAY;
+      const done = Math.min(18, Math.floor(sinceDays / 4));
+      const m = emptyMuslim(0, isoDay(b.convertedAt!));
+      m.lessons = lessonsUpTo(done);
+      m.iqama = `2${Math.floor(100_000_000 + r() * 899_999_999)}`;
+      m.sponsorName = pick(SPONSORS);
+      m.sponsorPhone = saudiPhone();
+      m.contactMethod = pick(["واتساب", "واتساب", "اتصال", "زيارة"]);
+      m.status = r() < 0.15 ? "منقطع" : "متابع";
+      b.muslim = m;
+    }
+  }
+
+  // Local residents found by the hidaya program (Saudi numbers, Riyadh time).
+  LOCAL_PEOPLE.forEach((p, i) => {
+    const fallback = c.callers.filter((s) => s.gender === p.gender);
+    const lang = langCodeFor(p.language, pick(fallback).languages[0]);
+    const caller = fallback.find((s) => s.languages.includes(lang)) ?? fallback[i % fallback.length];
+    const createdMs = nowMs - between(5, 120) * DAY;
+    const stage: Stage = i % 5 === 0 ? "new" : i % 5 === 1 ? "contacted" : i % 5 === 2 ? "interested" : i % 5 === 3 ? "learning" : "contacted";
+    const id = `B-${1000 + beneficiaries.length + 1}`;
+    const b: Beneficiary = {
+      id,
+      program: "hidaya",
+      city: pick(CITIES),
+      workplace: pick(WORKPLACES),
+      profession: p.gender === "f" ? pick(["عاملة منزلية", "ممرضة", "خياطة"]) : pick(PROFESSIONS.slice(0, 12)),
+      nationality: p.nationality,
+      languageLabel: p.language,
+      hidaya: null,
+      muslim: null,
+      name: p.name,
+      alias: id,
+      gender: p.gender,
+      language: lang,
+      country: "SA",
+      timezone: "Asia/Riyadh",
+      phone: saudiPhone(),
+      preferredHour: pick([12, 18, 19, 20, 21]),
+      stage,
+      stageHistory: [{ stage: "new", at: iso(createdMs) }, ...(stage !== "new" ? [{ stage, at: iso(createdMs + DAY) }] : [])],
+      assignedTo: caller.id,
+      introducedBy: null,
+      groupId: null,
+      sensitive: false,
+      background: "",
+      needs: "",
+      objections: [],
+      source: "",
+      createdAt: iso(createdMs),
+      convertedAt: null,
+      summary: null,
+      optedOut: false,
+    };
+    beneficiaries.push(b);
+    c.assignments.push({ id: nextId("A"), beneficiaryId: b.id, fromId: null, toId: caller.id, byId: c.supervisorOf(caller.teamId), reason: "إسناد أولي", at: b.createdAt });
+    const h = hidayaFor(b, pick(DEFAULT_LISTS.source), isoDay(createdMs));
+    h.category = category(b);
+    if (h.category) h.categoryHistory = [{ value: h.category, at: iso(createdMs + 2 * DAY), by: caller.id }];
+    if (stage !== "new") {
+      replay(b, caller.id, Math.floor(between(1, 8)), (nowMs - createdMs) / DAY, i % 3 === 0 ? nowMs - between(18, 35) * DAY : nowMs);
+      h.result = stage === "contacted" ? pick(["لم يستجب", "استجاب", "أخرى"]) : "استجاب";
+    }
+    if (i === 3) c.notes.push({ id: nextId("N"), beneficiaryId: b.id, authorId: caller.id, text: "طلب نسخة من معاني القرآن بالنيبالية، أحضرها في الزيارة القادمة.", at: iso(nowMs - 2 * DAY), needsContact: true });
+  });
+
+  // New Muslims from earlier years.
+  PAST_MUSLIMS.forEach((p, i) => {
+    const teacher = c.teachers.find((s) => s.gender === p.gender && s.languages.includes(langCodeFor(p.language, "hi"))) ?? c.teachers.filter((s) => s.gender === p.gender)[i % 3];
+    const lang = langCodeFor(p.language, teacher.languages[0]);
+    const caller = c.callers.filter((s) => s.gender === p.gender)[i % 4];
+    const convertedMs = nowMs - between(200, 2400) * DAY;
+    const id = `B-${1000 + beneficiaries.length + 1}`;
+    const b: Beneficiary = {
+      id,
+      program: "muslim",
+      city: pick(CITIES),
+      workplace: pick(WORKPLACES),
+      profession: pick(PROFESSIONS),
+      nationality: p.nationality,
+      languageLabel: p.language,
+      hidaya: null,
+      muslim: null,
+      name: p.name,
+      alias: id,
+      gender: p.gender,
+      language: lang,
+      country: "SA",
+      timezone: "Asia/Riyadh",
+      phone: saudiPhone(),
+      preferredHour: 20,
+      stage: "muslim",
+      stageHistory: [{ stage: "muslim", at: iso(convertedMs) }],
+      assignedTo: teacher.id,
+      introducedBy: caller.id,
+      groupId: null,
+      sensitive: false,
+      background: "",
+      needs: "",
+      objections: [],
+      source: "",
+      createdAt: iso(convertedMs - 30 * DAY),
+      convertedAt: iso(convertedMs),
+      summary: null,
+      optedOut: false,
+    };
+    beneficiaries.push(b);
+    c.assignments.push({ id: nextId("A"), beneficiaryId: b.id, fromId: caller.id, toId: teacher.id, byId: c.supervisorOf(teacher.teamId), reason: "انتقل إلى التعليم بعد إسلامه", at: b.convertedAt! });
+    const m = emptyMuslim(0, isoDay(convertedMs));
+    const finished = i % 3 !== 2;
+    m.lessons = lessonsUpTo(finished ? 18 : Math.floor(between(3, 15)));
+    m.certificate = finished;
+    m.status = finished ? pick(["متابع", "متابع", "مغادرة نهائية", "اجازة"]) : pick(["منقطع", "متابع"]);
+    m.iqama = `2${Math.floor(100_000_000 + r() * 899_999_999)}`;
+    m.sponsorName = pick(SPONSORS);
+    m.sponsorPhone = saudiPhone();
+    m.contactMethod = pick(["واتساب", "اتصال", "زيارة"]);
+    b.muslim = m;
+  });
+
+  // Serials follow the order people joined each program, as in the sheets.
+  [...beneficiaries].filter((b) => b.muslim).sort((a, z) => (a.muslim!.islamDate ?? "").localeCompare(z.muslim!.islamDate ?? "")).forEach((b) => (b.muslim!.serial = ++mSerial));
+  [...beneficiaries].filter((b) => b.hidaya).sort((a, z) => a.createdAt.localeCompare(z.createdAt)).forEach((b, i) => (b.hidaya!.serial = i + 1));
+  void hSerial;
+  return logs.sort((a, z) => a.at.localeCompare(z.at));
+}

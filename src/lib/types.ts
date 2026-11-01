@@ -53,8 +53,72 @@ export type Group = {
   createdAt: string;
 };
 
+/**
+ * The association's two programs, with the same fields as its spreadsheets:
+ * - hidaya (هداية): people being called and visited; whoever embraces Islam moves on.
+ * - muslim (المسلم الجديد): new Muslims, their 18 lessons in three stages, and the certificate.
+ */
+export type Program = "hidaya" | "muslim";
+
+/** Number of lessons in the new Muslim program: stage one is 1-6, two is 7-12, three is 13-18. */
+export const MUSLIM_LESSONS = 18;
+
+export type HidayaFollowup = "call" | "books" | "visit" | "gift";
+export const HIDAYA_FOLLOWUPS: HidayaFollowup[] = ["call", "books", "visit", "gift"];
+
+/** Columns of the هداية sheet, plus classification and profile fields. Dates are YYYY-MM-DD. */
+export type HidayaFile = {
+  serial: number;
+  source: string;
+  firstContact: string | null;
+  lastContact: string | null;
+  followup: Record<HidayaFollowup, boolean>;
+  visits: number;
+  /** نتيجة التواصل: استجاب، لم يستجب، أخرى، or أسلم once moved to the new Muslim program. */
+  result: string;
+  category: string;
+  categoryHistory: { value: string; at: string; by: string }[];
+  religion: string;
+  doubts: string;
+  interests: string;
+  nextContact: string | null;
+};
+
+/** Columns of the المسلم الجديد sheet. */
+export type MuslimFile = {
+  serial: number;
+  islamDate: string | null;
+  iqama: string;
+  sponsorName: string;
+  sponsorPhone: string;
+  /** الحالة: متابع، منقطع، اجازة، مغادرة نهائية. */
+  status: string;
+  contactMethod: string;
+  lessons: boolean[];
+  certificate: boolean;
+};
+
+/** One contact in the هداية log: it ticks the follow-up boxes and counts visits. */
+export type HidayaLog = {
+  id: string;
+  beneficiaryId: string;
+  userId: string;
+  kind: HidayaFollowup;
+  at: string;
+  note: string;
+};
+
 export type Beneficiary = {
   id: string;
+  program: Program;
+  city: string;
+  workplace: string;
+  profession: string;
+  nationality: string;
+  /** Language as the association writes it (هندي، تغالوغ...). `language` is the code used for lessons. */
+  languageLabel: string;
+  hidaya: HidayaFile | null;
+  muslim: MuslimFile | null;
   name: string;
   /** Shown instead of the name to anyone but the assigned person and their supervisor when sensitive. */
   alias: string;
@@ -229,7 +293,18 @@ export type RuleSettings = {
   newCase: { on: boolean; hours: number };
 };
 
-export type Settings = { rules: RuleSettings; rulesUpdatedAt: string | null; rulesUpdatedBy: string | null };
+/** Drop-down lists of the two sheets, edited by management. */
+export type ListKey = "nationality" | "language" | "source" | "result" | "category" | "religion" | "status" | "contactMethod" | "city";
+export const LIST_KEYS: ListKey[] = ["category", "result", "source", "nationality", "language", "religion", "city", "status", "contactMethod"];
+
+export type Settings = {
+  rules: RuleSettings;
+  rulesUpdatedAt: string | null;
+  rulesUpdatedBy: string | null;
+  lists: Record<ListKey, string[]>;
+  /** Days between contacts for each هداية classification before the case needs contact again. */
+  recontactDays: Record<string, number>;
+};
 
 export type AuditEntry = {
   id: string;
@@ -254,6 +329,7 @@ export type DB = {
   events: LessonEvent[];
   assignments: Assignment[];
   touches: Touch[];
+  hidayaLogs: HidayaLog[];
   imports: ChatImport[];
   shares: PendingShare[];
   settings: Settings;
