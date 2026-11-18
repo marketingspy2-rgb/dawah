@@ -15,6 +15,29 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-whatsapp",
+    date: "2026-11-18",
+    title: { ar: "رقم واتساب الرسمي، والدروس في موعدها وحدها", en: "The official WhatsApp number, and lessons that go out on time by themselves" },
+    items: [
+      {
+        kind: "new",
+        ar: "بعد ربط رقم الجمعية تخرج الرسائل والدروس منه فعلًا، وتصل ردود المستفيدين إلى «المحادثات» وحدها، وتظهر علامتا الوصول والقراءة. ومن يراسل الرقم لأول مرة يصبح حالة هداية جديدة عند داعية يتكلم لغته.",
+        en: "Once the association's number is connected, messages and lessons really go out from it, replies land in Chats by themselves, and the delivered and read ticks show. Anyone who messages the number for the first time becomes a new Hidaya case with a caller who speaks their language.",
+        href: "/whatsapp",
+      },
+      {
+        kind: "new",
+        ar: "«الإرسال الآلي للدروس»: يرسل المجدول كل درس وتذكيره في موعده من جدول الحلقة دون أن يضغط أحد «أرسل الآن».",
+        en: "“Automatic lessons”: the scheduler sends each lesson and its reminder on time from the circle's schedule, without anyone pressing Send now.",
+      },
+      {
+        kind: "improved",
+        ar: "الرسالة التي لم تصل تظهر بعلامة حمراء في المحادثة، وسببها في صفحة «رقم واتساب الرسمي».",
+        en: "A message that did not go out shows a red mark in the chat, with the reason on the “Official WhatsApp number” page.",
+      },
+    ],
+  },
+  {
     id: "2026-11-18-passwords",
     date: "2026-11-18",
     title: { ar: "الدخول بكلمة مرور، وسجل الاطلاع", en: "Password sign-in, and an access log" },

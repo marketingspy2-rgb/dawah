@@ -27,6 +27,7 @@ const ACTIONS: Record<string, { ar: string; en: string }> = {
   lists: { ar: "عدّل القوائم", en: "Edited the lists" },
   group_best_hour: { ar: "اعتمد أنسب ساعة لحلقة", en: "Applied a circle's best hour" },
   update_group: { ar: "عدّل حلقة", en: "Edited a group" },
+  whatsapp_in: { ar: "حالة جديدة راسلت رقم الجمعية", en: "New case that messaged the association's number" },
 };
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<{ who?: string; what?: string }> }) {

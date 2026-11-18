@@ -160,7 +160,11 @@ export type Message = {
   translation: string | null;
   at: string;
   authorId: string | null;
-  status: "sent" | "delivered" | "read" | null;
+  status: "sent" | "delivered" | "read" | "failed" | null;
+  /** WhatsApp's id for the message once sent through the official number. */
+  waId?: string;
+  /** Why WhatsApp refused it, when it failed. */
+  error?: string;
   kind: MessageKind;
   /** Lesson link carried by a lesson message. */
   eventId?: string;
@@ -309,6 +313,8 @@ export type Settings = {
   recontactDays: Record<string, number>;
   /** Features management has switched off. Missing means on, so new features start on. */
   features?: Partial<Record<string, boolean>>;
+  /** Last time the scheduler ran and how many lessons and reminders it sent. */
+  lastCron?: { at: string; sent: number; delivered: number; failed: number };
   /** Signs the session cookie when no SESSION_SECRET is configured. Made on first use. */
   sessionSecret?: string;
 };

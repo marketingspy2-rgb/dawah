@@ -173,7 +173,7 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
                     <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-muted">
                       {out && author && <span>{author.name.split(" ")[0]} ·</span>}
                       <span>{formatDate(m.at, lang)}</span>
-                      {m.status && <Ticks status={m.status} />}
+                      {m.status && <Ticks status={m.status} error={m.error} />}
                     </div>
                   </div>
                 </div>
@@ -236,7 +236,13 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
   );
 }
 
-function Ticks({ status }: { status: "sent" | "delivered" | "read" }) {
+function Ticks({ status, error }: { status: "sent" | "delivered" | "read" | "failed"; error?: string }) {
+  if (status === "failed")
+    return (
+      <span className="text-[11px] font-semibold text-bad" aria-label="failed" title={error}>
+        !
+      </span>
+    );
   return (
     <svg viewBox="0 0 18 12" className={cx("h-3 w-4", status === "read" ? "text-sky-600" : "text-muted")} fill="none" stroke="currentColor" strokeWidth="1.6" aria-label={status}>
       <path d="M1 6.5 4.5 10 11 2" />

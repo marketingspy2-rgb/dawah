@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, HelpCircle, Inbox, KeyRound, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ScrollText, ShieldCheck, ToggleRight, UsersRound } from "lucide-react";
+import { Activity, AlarmClock, MessageCircle, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, HelpCircle, Inbox, KeyRound, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ScrollText, ShieldCheck, ToggleRight, UsersRound } from "lucide-react";
 import type { DB, Role, UiLang } from "./types";
 
 /**
@@ -116,6 +116,15 @@ export const FEATURES: Feature[] = [
     group: "teach",
   },
   {
+    key: "autoLessons",
+    icon: AlarmClock,
+    title: { ar: "الإرسال الآلي للدروس", en: "Automatic lessons" },
+    desc: { ar: "يرسل المجدول كل درس وتذكيره في موعده من جدول الحلقة، دون أن يضغط أحد «أرسل الآن»", en: "The scheduler sends each lesson and its reminder on time from the circle's schedule, without anyone pressing Send now" },
+    roles: ["admin", "supervisor", "teacher"],
+    group: "teach",
+    place: "inside",
+  },
+  {
     key: "lessons",
     href: "/lessons",
     icon: BookOpen,
@@ -200,6 +209,15 @@ export const FEATURES: Feature[] = [
     roles: ["admin", "supervisor"],
     group: "manage",
     core: true,
+  },
+  {
+    key: "whatsappApi",
+    href: "/whatsapp",
+    icon: MessageCircle,
+    title: { ar: "رقم واتساب الرسمي", en: "Official WhatsApp number" },
+    desc: { ar: "الإرسال والاستقبال الحقيقي عبر رقم الجمعية، وحالة الربط والقوالب", en: "Real sending and receiving through the association's number, the connection and templates" },
+    roles: ["admin"],
+    group: "manage",
   },
   {
     key: "passwordLogin",
