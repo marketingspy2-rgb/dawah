@@ -6,6 +6,8 @@ import { CallList } from "@/components/call-list";
 import { headers } from "next/headers";
 import { callList } from "@/lib/daily";
 import { readDb } from "@/lib/db";
+import { featureOn } from "@/lib/features";
+import { groupBoards } from "@/lib/teaching";
 import { TASK_KIND_LABELS, translator, type T } from "@/lib/i18n";
 import {
   DAY,
@@ -14,6 +16,7 @@ import {
   canAct,
   displayName,
   formatDay,
+  formatHour,
   isStaff,
   learnerState,
   localTime,
@@ -84,6 +87,20 @@ function MyDay({ db, user, lang, t, origin, showAll }: P & { origin: string; sho
           </>
         )}
       </div>
+
+      {user.role === "teacher" && featureOn(db, "teacherBoard") && (() => {
+        const tip = groupBoards(db, user).find((g) => g.suggest && g.best);
+        return tip?.best ? (
+          <Link href="/teaching" className="mb-5 flex items-center gap-3 rounded-2xl border border-ok/25 bg-ok-soft/50 px-4 py-3 text-sm transition hover:border-ok">
+            <Clock className="size-5 shrink-0 text-ok" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-medium text-ok">{t("boardCard")}</span>
+              {tip.group.name}: {tip.currentPct !== null ? t("boardSuggest", { hour: formatHour(tip.best.hour, lang), pct: tip.best.pct, now: tip.currentPct }) : t("boardSuggestNoNow", { hour: formatHour(tip.best.hour, lang), pct: tip.best.pct })}
+            </span>
+            <span className="shrink-0 font-semibold text-ok">{t("boardOpen")}</span>
+          </Link>
+        ) : null;
+      })()}
 
       <Card title={t("callList")} icon={PhoneCall} className="mb-5" action={<span className="hidden text-xs text-muted sm:block">{t("callListSub")}</span>}>
         <CallList items={callList(db, user, now)} ctx={{ db, user, lang, t, origin }} showAll={showAll} />

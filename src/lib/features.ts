@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, Repeat, ToggleRight, UsersRound } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, Repeat, ToggleRight, UsersRound } from "lucide-react";
 import type { DB, Role, UiLang } from "./types";
 
 /**
@@ -66,6 +66,15 @@ export const FEATURES: Feature[] = [
     desc: { ar: "أعضاء كل مجموعة وتقدمهم وأيام الإرسال", en: "Members, progress and sending days" },
     roles: ALL,
     place: "people",
+    group: "teach",
+  },
+  {
+    key: "teacherBoard",
+    href: "/teaching",
+    icon: GraduationCap,
+    title: { ar: "لوحة المعلم", en: "Teacher's board" },
+    desc: { ar: "أنسب وقت لإرسال الدروس، وحال كل طالب، والدروس الصعبة", en: "Best time to send lessons, each learner, hardest lessons" },
+    roles: ["admin", "supervisor", "teacher"],
     group: "teach",
   },
   {

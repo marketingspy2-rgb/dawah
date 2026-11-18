@@ -15,6 +15,31 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-teacher-board",
+    date: "2026-11-18",
+    title: { ar: "لوحة المعلم: أنسب وقت لإرسال الدروس، وحال كل طالب", en: "Teacher's board: the best time to send lessons, and each learner" },
+    items: [
+      {
+        kind: "new",
+        ar: "«لوحة المعلم» في «المزيد»: لكل حلقة الساعة التي يفتح فيها الطلاب الدروس أسرع، وزر واحد لاعتمادها وقتًا للإرسال.",
+        en: "“Teacher's board” in More: for each circle, the hour learners open lessons fastest, and one button to send at that hour.",
+        href: "/teaching",
+      },
+      {
+        kind: "new",
+        ar: "في اللوحة نفسها حال كل طالب (ما فتحه، ونسبة إجاباته الصحيحة، وسرعة فتحه للدروس، وآخر نشاط)، والدروس التي يتعثر فيها الطلاب أكثر من غيرها.",
+        en: "The same board shows each learner (what they opened, correct answers, how fast they open lessons, last activity) and the lessons learners get stuck on most.",
+        href: "/teaching",
+      },
+      {
+        kind: "improved",
+        ar: "إذا وُجد وقت أنسب لإحدى حلقاتك يظهر لك تنبيه في «يومي».",
+        en: "When one of your circles has a better time to send, a note shows on My day.",
+        href: "/",
+      },
+    ],
+  },
+  {
     id: "2026-11-18-four-places",
     date: "2026-11-18",
     title: { ar: "أربع وجهات فقط، و«يومي» يجمع عملك كله", en: "Four places only, and “My day” holds all your work" },

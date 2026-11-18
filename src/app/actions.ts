@@ -359,6 +359,24 @@ export async function updateGroupSchedule(formData: FormData) {
   await backWith({ saved: 1 });
 }
 
+/** One tap on the teacher's board: send this group's lessons at the hour learners open them most. */
+export async function applyGroupHour(formData: FormData) {
+  const user = await requireUser();
+  const groupId = String(formData.get("groupId"));
+  const hour = Number(formData.get("hour"));
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return;
+  await mutate((db) => {
+    const group = db.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const owner = db.users.find((u) => u.id === group.ownerId);
+    if (!owner || (owner.id !== user.id && !canManageUser(db, user, owner))) throw new Error("Not allowed");
+    group.schedule.hour = hour;
+    audit(db, user, "group_best_hour", group.id);
+  });
+  refresh();
+  await backWith({ applied: hour });
+}
+
 export async function moveToGroup(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
