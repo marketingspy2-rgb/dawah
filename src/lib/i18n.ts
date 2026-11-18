@@ -64,6 +64,16 @@ const S = {
   boardCard: ["اقتراح من لوحة المعلم", "From your teacher's board"],
   boardOpen: ["افتح لوحة المعلم", "Open the teacher's board"],
 
+  // Capture links and QR codes
+  sourcesTitle: ["مصادر التعرّف ورموز QR", "Sources and QR codes"],
+  sourcesSub: ["لكل مصدر رابط ورمز QR للطباعة. من يمسحه يختار لغته ويكتب اسمه ورقمه، فتُفتح له حالة في هداية باسم المصدر وتُسند لداعية يتكلم لغته.", "Each source has a link and a printable QR code. Whoever scans it picks a language and leaves a name and number; a Hidaya case opens under that source and goes to a caller who speaks the language."],
+  sourcesWhich: ["أي المصادر أنجح", "Which sources work"],
+  sourcesMuslims: ["{n} أسلم", "{n} embraced Islam"],
+  sourcesViaLink: ["{n} عبر الرابط", "{n} via the link"],
+  sourcesDownload: ["تحميل الرمز", "Download QR"],
+  sourcesTry: ["جرّب", "Try it"],
+  sourcesNote: ["المصادر نفسها قائمة «مصدر التعرّف» في صفحة القوائم: أي مصدر تضيفه هناك يظهر هنا برابطه ورمزه.", "These are the “source” list on the Lists page: any source you add there shows here with its own link and code."],
+
   // Session
   switchLang: ["English", "العربية"],
   logout: ["تبديل المستخدم", "Switch user"],

@@ -1,6 +1,7 @@
 "use server";
 
-import { FEATURES } from "@/lib/features";
+import { CAPTURE_MARK, sourceByCode } from "@/lib/capture";
+import { FEATURES, featureOn } from "@/lib/features";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -24,7 +25,7 @@ import {
 import { applyImport, guessBeneficiarySender, parseWhatsAppExport, stageShare, textFromFile } from "@/lib/chat-import";
 import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
 import { addDays, fromHijri, isoDay } from "@/lib/hijri";
-import { CONVERTED, DEFAULT_RECONTACT_DAYS, FOLLOWUP_LABELS, applyHidayaLog, emptyHidaya, emptyMuslim, langCodeFor, langCodeOf, nextSerial, recontactDays } from "@/lib/programs";
+import { CONVERTED, DEFAULT_RECONTACT_DAYS, FOLLOWUP_LABELS, LANG_LABEL_FOR, applyHidayaLog, emptyHidaya, emptyMuslim, langCodeFor, langCodeOf, nextSerial, recontactDays } from "@/lib/programs";
 import type { Beneficiary, DB, HidayaFollowup, Lang, Lesson, Message, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
 import { HIDAYA_FOLLOWUPS, LANGS, LIST_KEYS, MUSLIM_LESSONS, STAGES, TOUCH_KINDS } from "@/lib/types";
 
@@ -1146,4 +1147,58 @@ export async function saveFeatures(formData: FormData) {
   });
   refresh();
   redirect("/features?saved=1");
+}
+
+// ---------- Capture links (public, no login) ----------
+
+/**
+ * Someone scanned a source's QR code or opened its link and filled the short form.
+ * A new هداية case opens with the source filled in and goes to the best-matched caller;
+ * the follow-up rules then put a first contact on that caller's day.
+ */
+export async function captureSubmit(code: string, formData: FormData) {
+  const db0 = await loadDb();
+  const source = sourceByCode(db0, code);
+  if (!source || !featureOn(db0, "captureLinks")) return;
+  const name = str(formData, "name").slice(0, 80);
+  const phone = str(formData, "phone").replace(/[^\d+]/g, "").slice(0, 20);
+  const lang = str(formData, "lang") as Lang;
+  const gender = str(formData, "gender") === "f" ? "f" : "m";
+  const message = str(formData, "message").slice(0, 600);
+  if (!name || phone.replace(/\D/g, "").length < 7 || !LANGS.includes(lang)) redirect(`/c/${code}?lang=${LANGS.includes(lang) ? lang : ""}&err=1`);
+  await mutate((db) => {
+    const now = new Date();
+    const existing = duplicateOf(db, phone);
+    if (existing) {
+      // Already known: keep one file and tell whoever holds it.
+      db.notes.push({ id: newId("N"), beneficiaryId: existing.id, authorId: existing.assignedTo, text: `عاد عبر رابط «${source}»${message ? `: ${message}` : ""}`, at: now.toISOString(), needsContact: true });
+      audit(db, null, "capture_again", existing.id);
+      return;
+    }
+    const country = guessCountryFromPhone(phone);
+    const owner = suggestAssignee(db, { language: lang, gender }, "caller");
+    if (!owner) return;
+    const b = blankBeneficiary(db, owner, "hidaya");
+    b.name = name;
+    b.phone = phone;
+    b.gender = gender;
+    b.language = lang;
+    b.languageLabel = LANG_LABEL_FOR[lang];
+    if (country) {
+      b.country = country.code;
+      b.timezone = country.tz;
+    }
+    b.source = CAPTURE_MARK;
+    b.assignedTo = owner.id;
+    b.hidaya = emptyHidaya(nextSerial(db, "hidaya"));
+    b.hidaya.source = source;
+    b.hidaya.nextContact = isoDay(now);
+    b.groupId = groupForMember(db, owner.id, "dawah", lang)?.id ?? null;
+    db.beneficiaries.push(b);
+    db.assignments.push({ id: newId("A"), beneficiaryId: b.id, fromId: null, toId: owner.id, byId: owner.id, reason: `رابط «${source}»`, at: b.createdAt });
+    if (message) db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "in", text: message, translation: null, at: now.toISOString(), authorId: null, status: null, kind: "text" });
+    audit(db, null, "capture", b.id);
+  });
+  refresh();
+  redirect(`/c/${code}?lang=${lang}&done=1`);
 }

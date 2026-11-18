@@ -15,6 +15,29 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-capture-links",
+    date: "2026-11-18",
+    title: { ar: "رابط ورمز QR لكل مصدر تعرّف", en: "A link and QR code for every source" },
+    items: [
+      {
+        kind: "new",
+        ar: "صفحة «مصادر التعرّف ورموز QR» في «المزيد»: لكل مصدر (الجوال الدعوي، السيارة الدعوية، الزيارات الميدانية…) رابط ورمز QR للطباعة.",
+        en: "A “Sources and QR codes” page in More: every source (the dawah phone, the dawah car, field visits…) gets a link and a printable QR code.",
+        href: "/sources",
+      },
+      {
+        kind: "new",
+        ar: "من يمسح الرمز يختار لغته ويكتب اسمه ورقم واتساب، فتُفتح له حالة في هداية باسم المصدر، وتُسند لداعية يتكلم لغته، وتظهر في «يومي» عنده كأول تواصل. ومن سبق تسجيله لا تتكرر حالته، بل تصل ملاحظة لمن يتابعه.",
+        en: "Whoever scans it picks a language and leaves a name and WhatsApp number. A Hidaya case opens under that source, goes to a caller who speaks the language, and shows on their My day as a first contact. Someone already known does not get a second file; whoever holds theirs gets a note instead.",
+      },
+      {
+        kind: "new",
+        ar: "في الصفحة نفسها: أي المصادر تأتي بأكثر الناس، وكم أسلم من كل مصدر.",
+        en: "The same page shows which sources bring the most people, and how many from each embraced Islam.",
+      },
+    ],
+  },
+  {
     id: "2026-11-18-teacher-board",
     date: "2026-11-18",
     title: { ar: "لوحة المعلم: أنسب وقت لإرسال الدروس، وحال كل طالب", en: "Teacher's board: the best time to send lessons, and each learner" },

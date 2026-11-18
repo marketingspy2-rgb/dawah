@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, Repeat, ToggleRight, UsersRound } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ToggleRight, UsersRound } from "lucide-react";
 import type { DB, Role, UiLang } from "./types";
 
 /**
@@ -37,6 +37,15 @@ export const FEATURES: Feature[] = [
     desc: { ar: "حالات هداية التي حان موعدها أو بردت", en: "Hidaya cases that are due or going cold" },
     roles: ["admin", "supervisor", "caller"],
     place: "people",
+    group: "work",
+  },
+  {
+    key: "captureLinks",
+    href: "/sources",
+    icon: QrCode,
+    title: { ar: "مصادر التعرّف ورموز QR", en: "Sources and QR codes" },
+    desc: { ar: "لكل مصدر رابط ورمز يفتح حالة جديدة باسمه، وأي المصادر أنجح", en: "A link and QR code per source that opens a case under it, and which sources work best" },
+    roles: ["admin", "supervisor", "caller"],
     group: "work",
   },
   {
