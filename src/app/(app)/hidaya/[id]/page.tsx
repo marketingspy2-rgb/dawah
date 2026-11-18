@@ -6,6 +6,7 @@ import { PendingButton } from "@/components/client";
 import { CategoryChip, FOLLOWUP_ICONS, FollowupMarks, HijriInput, ListSelect, ResultChip } from "@/components/fields";
 import { CommonFields, HidayaFields, ProfileFields } from "@/components/person-forms";
 import { Avatar, Button, Card, Crumbs, Empty, Field, Notice, Pill, WhatsAppLink, cx } from "@/components/ui";
+import { ScholarCard } from "@/components/scholar-card";
 import { mutate, newId, readDb } from "@/lib/db";
 import { daysBetween, formatGregorian, formatHijri, isoDay } from "@/lib/hijri";
 import { translator } from "@/lib/i18n";
@@ -221,6 +222,8 @@ export default async function HidayaFilePage({ params, searchParams }: { params:
               <Empty>{t("nothingHere")}</Empty>
             )}
           </Card>
+
+          <ScholarCard db={db} user={user} b={b} lang={lang} t={t} />
 
           <Card title={t("hidayaSheet")} icon={ClipboardList}>
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">

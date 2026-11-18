@@ -10,6 +10,7 @@ import { PhoneSend } from "@/components/call-list";
 import { QuickLog } from "@/components/quick-log";
 import { LockIcon } from "@/components/icons";
 import { Avatar, Button, Card, Crumbs, Empty, Field, LevelBadge, Notice, Pill, RoleBadge, WhatsAppLink, cx } from "@/components/ui";
+import { ScholarCard } from "@/components/scholar-card";
 import { mutate, newId, readDb } from "@/lib/db";
 import { featureOn } from "@/lib/features";
 import { TASK_KIND_LABELS, langDir, translator } from "@/lib/i18n";
@@ -388,6 +389,8 @@ export default async function BeneficiaryPage({
               <Empty>{t("nothingHere")}</Empty>
             )}
           </Card>
+
+          <ScholarCard db={db} user={user} b={b} lang={lang} t={t} />
 
           <Card
             title={

@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { callList } from "@/lib/daily";
 import { readDb } from "@/lib/db";
 import { featureOn } from "@/lib/features";
+import { waitingQuestions } from "@/lib/questions";
 import { groupBoards } from "@/lib/teaching";
 import { TASK_KIND_LABELS, translator, type T } from "@/lib/i18n";
 import {
@@ -231,6 +232,8 @@ function Overview({ db, user, lang, t }: P) {
   }
   const untouched = teams.reduce((n, m) => n + m.untouchedReds, 0);
   if (untouched) alerts.push({ tone: "bad", text: t("redUntouched", { n: untouched }), href: "/groups", cta: t("groups") });
+  const questions = featureOn(db, "scholarQuestions") ? waitingQuestions(db, user).length : 0;
+  if (questions) alerts.push({ tone: "warn", text: t("qNeedsYou", { n: questions }), href: "/questions", cta: t("qTitle") });
   if (waitingLong.length) alerts.push({ tone: "warn", text: t("waitingLong", { n: waitingLong.length }), href: "/chats", cta: t("chats") });
 
   const callers = metrics.filter((m) => m.user.role === "caller");

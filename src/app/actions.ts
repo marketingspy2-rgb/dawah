@@ -2,6 +2,7 @@
 
 import { CAPTURE_MARK, sourceByCode } from "@/lib/capture";
 import { FEATURES, featureOn } from "@/lib/features";
+import { canAnswer } from "@/lib/questions";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -1201,4 +1202,40 @@ export async function captureSubmit(code: string, formData: FormData) {
   });
   refresh();
   redirect(`/c/${code}?lang=${lang}&done=1`);
+}
+
+// ---------- Ask the scholars ----------
+
+export async function askScholars(formData: FormData) {
+  const user = await requireUser();
+  const text = str(formData, "text").slice(0, 2000);
+  const beneficiaryId = str(formData, "beneficiaryId") || null;
+  if (!text) return;
+  await mutate((db) => {
+    if (beneficiaryId) getBeneficiary(db, user, beneficiaryId, false);
+    db.questions.push({ id: newId("Q"), beneficiaryId, askedBy: user.id, text, at: new Date().toISOString(), answer: null, answeredBy: null, answeredAt: null });
+    audit(db, user, "ask_scholars", beneficiaryId ?? "general");
+  });
+  refresh();
+  await backWith({ asked: 1 });
+}
+
+/** The answer goes back to whoever asked, and onto the person's file as a note to pass on. */
+export async function answerQuestion(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "questionId");
+  const answer = str(formData, "answer").slice(0, 4000);
+  if (!answer) return;
+  await mutate((db) => {
+    const q = db.questions.find((x) => x.id === id);
+    if (!q || !canAnswer(db, user, q)) throw new Error("Not allowed");
+    const now = new Date().toISOString();
+    q.answer = answer;
+    q.answeredBy = user.id;
+    q.answeredAt = now;
+    if (q.beneficiaryId) db.notes.push({ id: newId("N"), beneficiaryId: q.beneficiaryId, authorId: user.id, text: `جواب أهل العلم: ${answer}`, at: now, needsContact: true });
+    audit(db, user, "answer_question", q.id);
+  });
+  refresh();
+  await backWith({ answered: 1 });
 }

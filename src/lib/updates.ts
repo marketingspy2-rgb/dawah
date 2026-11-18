@@ -15,6 +15,29 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-ask-scholars",
+    date: "2026-11-18",
+    title: { ar: "اسأل أهل العلم، وفحص المحتوى الشرعي", en: "Ask the scholars, and a religious content check" },
+    items: [
+      {
+        kind: "new",
+        ar: "في ملف كل مستفيد زر «اسأل أهل العلم»: اكتب السؤال الذي لم تعرف جوابه، فيصل لمشرفك. وصفحة «اسأل أهل العلم» في «المزيد» تجمع الأسئلة وأجوبتها، ويمكن طرح سؤال عام منها.",
+        en: "Every file has an “Ask the scholars” button: write the question you could not answer and it goes to your supervisor. The “Ask the scholars” page in More lists questions and answers, and takes general questions too.",
+        href: "/questions",
+      },
+      {
+        kind: "new",
+        ar: "يظهر للمشرف والإدارة في «يومي» عدد الأسئلة التي تنتظر جوابهم. والجواب يُحفظ في ملف المستفيد كملاحظة، فيظهر للداعية في قائمة اليوم ليوصله.",
+        en: "Supervisors and management see on My day how many questions wait for them. The answer is saved on the file as a note, so it shows on the caller's list to pass on.",
+      },
+      {
+        kind: "new",
+        ar: "فحص المحتوى الشرعي: في محرر الدروس وفي الأجوبة تنبيه إذا ذُكر حكم صريح (يجوز، حرام…) أو آية أو حديث بلا مصدر، ليراجعه من عنده علم قبل الإرسال.",
+        en: "Religious content check: the lesson editor and answers flag outright rulings (permitted, forbidden…) and verses or hadith without a source, for someone with knowledge to check before sending.",
+      },
+    ],
+  },
+  {
     id: "2026-11-18-capture-links",
     date: "2026-11-18",
     title: { ar: "رابط ورمز QR لكل مصدر تعرّف", en: "A link and QR code for every source" },

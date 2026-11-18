@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ToggleRight, UsersRound } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, HelpCircle, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ShieldCheck, ToggleRight, UsersRound } from "lucide-react";
 import type { DB, Role, UiLang } from "./types";
 
 /**
@@ -38,6 +38,24 @@ export const FEATURES: Feature[] = [
     roles: ["admin", "supervisor", "caller"],
     place: "people",
     group: "work",
+  },
+  {
+    key: "scholarQuestions",
+    href: "/questions",
+    icon: HelpCircle,
+    title: { ar: "اسأل أهل العلم", en: "Ask the scholars" },
+    desc: { ar: "سؤال لا تعرف جوابه، يجيب عنه المشرف أو يحيله", en: "A question you cannot answer, answered or passed on by your supervisor" },
+    roles: ALL,
+    group: "work",
+  },
+  {
+    key: "contentCheck",
+    icon: ShieldCheck,
+    title: { ar: "فحص المحتوى الشرعي", en: "Religious content check" },
+    desc: { ar: "تنبيه عند ذكر حكم صريح أو آية وحديث بلا مصدر في الدروس والأجوبة", en: "Flags outright rulings, and verses or hadith without a source, in lessons and answers" },
+    roles: LEADS,
+    group: "teach",
+    place: "inside",
   },
   {
     key: "captureLinks",

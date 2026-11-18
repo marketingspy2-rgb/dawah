@@ -308,6 +308,21 @@ export type Settings = {
   features?: Partial<Record<string, boolean>>;
 };
 
+/**
+ * "Ask the scholars": a question a caller or teacher could not answer on their own,
+ * about a beneficiary or in general. A supervisor or management answers it or passes it on.
+ */
+export type Question = {
+  id: string;
+  beneficiaryId: string | null;
+  askedBy: string;
+  text: string;
+  at: string;
+  answer: string | null;
+  answeredBy: string | null;
+  answeredAt: string | null;
+};
+
 export type AuditEntry = {
   id: string;
   userId: string;
@@ -336,4 +351,5 @@ export type DB = {
   shares: PendingShare[];
   settings: Settings;
   audit: AuditEntry[];
+  questions: Question[];
 };

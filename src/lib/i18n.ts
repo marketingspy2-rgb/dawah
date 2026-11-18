@@ -74,6 +74,27 @@ const S = {
   sourcesTry: ["جرّب", "Try it"],
   sourcesNote: ["المصادر نفسها قائمة «مصدر التعرّف» في صفحة القوائم: أي مصدر تضيفه هناك يظهر هنا برابطه ورمزه.", "These are the “source” list on the Lists page: any source you add there shows here with its own link and code."],
 
+  // Ask the scholars
+  qTitle: ["اسأل أهل العلم", "Ask the scholars"],
+  qSub: ["سؤال شرعي لا تعرف جوابه؟ اكتبه هنا، فيجيب عنه المشرف أو يحيله لمن يعرف، ويصلك الجواب في ملف المستفيد لتنقله له.", "A religious question you cannot answer? Write it here. Your supervisor answers or passes it on, and the answer lands on the beneficiary's file for you to pass on."],
+  qAsk: ["اسأل أهل العلم", "Ask the scholars"],
+  qPlaceholder: ["ما السؤال؟ اكتبه كما سأله المستفيد، وما تحتاج معرفته.", "What is the question? Write it as the beneficiary asked it, and what you need to know."],
+  qSend: ["أرسل السؤال", "Send the question"],
+  qAsked: ["وصل سؤالك، وستجد الجواب هنا وفي ملف المستفيد.", "Your question was sent. The answer will show here and on the beneficiary's file."],
+  qAnswered: ["حُفظ الجواب وأُضيف إلى ملف المستفيد ليوصله الداعية.", "The answer was saved and added to the file for the caller to pass on."],
+  qWaiting: ["ينتظر الجواب", "Waiting for an answer"],
+  qAnswer: ["الجواب", "Answer"],
+  qAnswerPlaceholder: ["اكتب الجواب مختصرًا، واذكر مصدر الآية أو الحديث.", "Write a short answer, with the source of any verse or hadith."],
+  qSaveAnswer: ["احفظ الجواب", "Save the answer"],
+  qGeneral: ["سؤال عام", "General question"],
+  qAbout: ["عن {name}", "About {name}"],
+  qBy: ["سأل {name}", "Asked by {name}"],
+  qAnsweredBy: ["أجاب {name}", "Answered by {name}"],
+  qNone: ["لا توجد أسئلة بعد.", "No questions yet."],
+  qOpen: ["تنتظر الجواب ({n})", "Waiting ({n})"],
+  qDone: ["أُجيب عنها", "Answered"],
+  qNeedsYou: ["{n} سؤال لأهل العلم ينتظر جوابك", "{n} questions to the scholars are waiting for your answer"],
+
   // Session
   switchLang: ["English", "العربية"],
   logout: ["تبديل المستخدم", "Switch user"],
