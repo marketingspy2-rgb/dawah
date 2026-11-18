@@ -1,5 +1,7 @@
 import { BookOpenCheck, HeartHandshake, MessageCircleHeart, Sprout } from "lucide-react";
-import { login, toggleLang } from "@/app/actions";
+import { login, loginWithPassword, toggleLang } from "@/app/actions";
+import { PendingButton } from "@/components/client";
+import { featureOn } from "@/lib/features";
 import { Avatar, RoleBadge } from "@/components/ui";
 import { loadDb } from "@/lib/db";
 import { LANG_LABELS, translator } from "@/lib/i18n";
@@ -9,11 +11,13 @@ import type { User } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ err?: string }> }) {
+  const { err } = await searchParams;
   const lang = await getUiLang();
   const t = translator(lang);
   const db = await loadDb();
   const admin = db.users.find((u) => u.role === "admin")!;
+  const passwords = featureOn(db, "passwordLogin");
 
   const journey = [
     { icon: MessageCircleHeart, label: t("journey1") },
@@ -60,7 +64,7 @@ export default async function LoginPage() {
         </div>
 
         <div>
-          <span className="mb-4 inline-block rounded-full bg-white/10 px-3 py-1 text-xs text-night-text">{t("demoBadge")}</span>
+          {!passwords && <span className="mb-4 inline-block rounded-full bg-white/10 px-3 py-1 text-xs text-night-text">{t("demoBadge")}</span>}
           <h1 className="text-3xl leading-tight font-bold lg:text-4xl">{t("appTagline")}</h1>
           <p className="mt-3 max-w-md text-night-text">{t("structureSub")}</p>
           <ol className="mt-8 grid grid-cols-4 gap-2">
@@ -79,49 +83,71 @@ export default async function LoginPage() {
         <p className="hidden text-xs text-night-text/70 lg:block">{t("accessBeneficiary")}</p>
       </section>
 
+      {passwords ? (
+        <section className="flex items-center justify-center px-4 py-10 lg:px-12">
+          <form action={loginWithPassword} className="w-full max-w-sm space-y-4 rounded-3xl border border-border bg-surface p-6 shadow-card">
+            <div>
+              <h2 className="text-xl font-bold">{t("pwTitle")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("pwHint")}</p>
+            </div>
+            {err && <p className="rounded-xl bg-bad-soft px-3 py-2 text-sm text-bad">{t("pwWrong")}</p>}
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium">{t("pwUsername")}</span>
+              <input name="username" required dir="ltr" autoComplete="username" autoCapitalize="none" />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-[13px] font-medium">{t("pwPassword")}</span>
+              <input name="password" type="password" required dir="ltr" autoComplete="current-password" />
+            </label>
+            <PendingButton className="w-full rounded-xl bg-brand py-2.5 font-semibold text-white hover:bg-brand-strong">{t("pwSignIn")}</PendingButton>
+            <p className="text-xs text-muted">{t("pwForgot")}</p>
+          </form>
+        </section>
+      ) : (
       <section className="px-4 py-8 lg:px-12 lg:py-12">
-        <h2 className="text-xl font-bold">{t("loginTitle")}</h2>
-        <p className="mt-1 text-sm text-muted">{t("loginHint")}</p>
+          <h2 className="text-xl font-bold">{t("loginTitle")}</h2>
+          <p className="mt-1 text-sm text-muted">{t("loginHint")}</p>
 
-        <div className="mt-6 space-y-6">
-          <div>
-            <div className="mb-2 text-xs font-medium text-muted">{t("loginRoleAdmin")}</div>
-            <Account u={admin} hint={t("centerOverview")} />
+          <div className="mt-6 space-y-6">
+            <div>
+              <div className="mb-2 text-xs font-medium text-muted">{t("loginRoleAdmin")}</div>
+              <Account u={admin} hint={t("centerOverview")} />
+            </div>
+
+            {db.teams.map((team) => {
+              const sup = db.users.find((u) => u.id === team.supervisorId)!;
+              const members = db.users.filter((u) => u.teamId === team.id && u.id !== sup.id);
+              const callers = members.filter((u) => u.role === "caller");
+              const teachers = members.filter((u) => u.role === "teacher");
+              return (
+                <div key={team.id} className="rounded-2xl border border-border bg-surface-2/50 p-3 lg:p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2 px-1">
+                    <h3 className="font-semibold">{team.name}</h3>
+                    <span className="text-xs text-muted">
+                      {callers.length} {t("callers")} · {teachers.length} {t("teachers")}
+                    </span>
+                  </div>
+                  <Account u={sup} hint={t("loginRoleSupervisor")} />
+                  <div className="mt-3 grid gap-3 border-s-2 border-border ps-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <div className="px-1 text-[11px] font-medium text-muted">{t("loginRoleCaller")}</div>
+                      {callers.map((u) => (
+                        <Account key={u.id} u={u} />
+                      ))}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="px-1 text-[11px] font-medium text-muted">{t("loginRoleTeacher")}</div>
+                      {teachers.map((u) => (
+                        <Account key={u.id} u={u} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          {db.teams.map((team) => {
-            const sup = db.users.find((u) => u.id === team.supervisorId)!;
-            const members = db.users.filter((u) => u.teamId === team.id && u.id !== sup.id);
-            const callers = members.filter((u) => u.role === "caller");
-            const teachers = members.filter((u) => u.role === "teacher");
-            return (
-              <div key={team.id} className="rounded-2xl border border-border bg-surface-2/50 p-3 lg:p-4">
-                <div className="mb-3 flex items-center justify-between gap-2 px-1">
-                  <h3 className="font-semibold">{team.name}</h3>
-                  <span className="text-xs text-muted">
-                    {callers.length} {t("callers")} · {teachers.length} {t("teachers")}
-                  </span>
-                </div>
-                <Account u={sup} hint={t("loginRoleSupervisor")} />
-                <div className="mt-3 grid gap-3 border-s-2 border-border ps-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <div className="px-1 text-[11px] font-medium text-muted">{t("loginRoleCaller")}</div>
-                    {callers.map((u) => (
-                      <Account key={u.id} u={u} />
-                    ))}
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="px-1 text-[11px] font-medium text-muted">{t("loginRoleTeacher")}</div>
-                    {teachers.map((u) => (
-                      <Account key={u.id} u={u} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+        </section>
+      )}
     </main>
   );
 }

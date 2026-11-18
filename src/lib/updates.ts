@@ -15,6 +15,154 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-whatsapp",
+    date: "2026-11-18",
+    title: { ar: "رقم واتساب الرسمي، والدروس في موعدها وحدها", en: "The official WhatsApp number, and lessons that go out on time by themselves" },
+    items: [
+      {
+        kind: "new",
+        ar: "بعد ربط رقم الجمعية تخرج الرسائل والدروس منه فعلًا، وتصل ردود المستفيدين إلى «المحادثات» وحدها، وتظهر علامتا الوصول والقراءة. ومن يراسل الرقم لأول مرة يصبح حالة هداية جديدة عند داعية يتكلم لغته.",
+        en: "Once the association's number is connected, messages and lessons really go out from it, replies land in Chats by themselves, and the delivered and read ticks show. Anyone who messages the number for the first time becomes a new Hidaya case with a caller who speaks their language.",
+        href: "/whatsapp",
+      },
+      {
+        kind: "new",
+        ar: "«الإرسال الآلي للدروس»: يرسل المجدول كل درس وتذكيره في موعده من جدول الحلقة دون أن يضغط أحد «أرسل الآن».",
+        en: "“Automatic lessons”: the scheduler sends each lesson and its reminder on time from the circle's schedule, without anyone pressing Send now.",
+      },
+      {
+        kind: "improved",
+        ar: "الرسالة التي لم تصل تظهر بعلامة حمراء في المحادثة، وسببها في صفحة «رقم واتساب الرسمي».",
+        en: "A message that did not go out shows a red mark in the chat, with the reason on the “Official WhatsApp number” page.",
+      },
+    ],
+  },
+  {
+    id: "2026-11-18-passwords",
+    date: "2026-11-18",
+    title: { ar: "الدخول بكلمة مرور، وسجل الاطلاع", en: "Password sign-in, and an access log" },
+    items: [
+      {
+        kind: "new",
+        ar: "صفحة «أسماء الدخول وكلمات المرور» للإدارة والمشرفين: اسم دخول وكلمة مرور لكل موظف. وكل شخص يغيّر كلمة مروره من «المزيد».",
+        en: "A “Usernames and passwords” page for management and supervisors: a username and password for each staff member. Everyone can change their own password in More.",
+        href: "/access",
+      },
+      {
+        kind: "new",
+        ar: "عند تفعيل «الدخول بكلمة مرور» من «المميزات» تختفي قائمة الأسماء من صفحة الدخول، ويدخل كل موظف باسمه وكلمة مروره. لا يُفعَّل حتى تضع الإدارة كلمة مرور لنفسها.",
+        en: "Once “Password sign-in” is switched on in Features, the list of names leaves the sign-in page and everyone signs in with their own username and password. It cannot be switched on before management has a password.",
+      },
+      {
+        kind: "new",
+        ar: "«سجل الاطلاع» للإدارة: من دخل، ومحاولات الدخول الخاطئة، ومن فتح أي ملف، ومن غيّر ماذا ومتى.",
+        en: "An “Access log” for management: sign-ins, failed attempts, who opened which file, and who changed what and when.",
+        href: "/audit",
+      },
+    ],
+  },
+  {
+    id: "2026-11-18-ask-scholars",
+    date: "2026-11-18",
+    title: { ar: "اسأل أهل العلم، وفحص المحتوى الشرعي", en: "Ask the scholars, and a religious content check" },
+    items: [
+      {
+        kind: "new",
+        ar: "في ملف كل مستفيد زر «اسأل أهل العلم»: اكتب السؤال الذي لم تعرف جوابه، فيصل لمشرفك. وصفحة «اسأل أهل العلم» في «المزيد» تجمع الأسئلة وأجوبتها، ويمكن طرح سؤال عام منها.",
+        en: "Every file has an “Ask the scholars” button: write the question you could not answer and it goes to your supervisor. The “Ask the scholars” page in More lists questions and answers, and takes general questions too.",
+        href: "/questions",
+      },
+      {
+        kind: "new",
+        ar: "يظهر للمشرف والإدارة في «يومي» عدد الأسئلة التي تنتظر جوابهم. والجواب يُحفظ في ملف المستفيد كملاحظة، فيظهر للداعية في قائمة اليوم ليوصله.",
+        en: "Supervisors and management see on My day how many questions wait for them. The answer is saved on the file as a note, so it shows on the caller's list to pass on.",
+      },
+      {
+        kind: "new",
+        ar: "فحص المحتوى الشرعي: في محرر الدروس وفي الأجوبة تنبيه إذا ذُكر حكم صريح (يجوز، حرام…) أو آية أو حديث بلا مصدر، ليراجعه من عنده علم قبل الإرسال.",
+        en: "Religious content check: the lesson editor and answers flag outright rulings (permitted, forbidden…) and verses or hadith without a source, for someone with knowledge to check before sending.",
+      },
+    ],
+  },
+  {
+    id: "2026-11-18-capture-links",
+    date: "2026-11-18",
+    title: { ar: "رابط ورمز QR لكل مصدر تعرّف", en: "A link and QR code for every source" },
+    items: [
+      {
+        kind: "new",
+        ar: "صفحة «مصادر التعرّف ورموز QR» في «المزيد»: لكل مصدر (الجوال الدعوي، السيارة الدعوية، الزيارات الميدانية…) رابط ورمز QR للطباعة.",
+        en: "A “Sources and QR codes” page in More: every source (the dawah phone, the dawah car, field visits…) gets a link and a printable QR code.",
+        href: "/sources",
+      },
+      {
+        kind: "new",
+        ar: "من يمسح الرمز يختار لغته ويكتب اسمه ورقم واتساب، فتُفتح له حالة في هداية باسم المصدر، وتُسند لداعية يتكلم لغته، وتظهر في «يومي» عنده كأول تواصل. ومن سبق تسجيله لا تتكرر حالته، بل تصل ملاحظة لمن يتابعه.",
+        en: "Whoever scans it picks a language and leaves a name and WhatsApp number. A Hidaya case opens under that source, goes to a caller who speaks the language, and shows on their My day as a first contact. Someone already known does not get a second file; whoever holds theirs gets a note instead.",
+      },
+      {
+        kind: "new",
+        ar: "في الصفحة نفسها: أي المصادر تأتي بأكثر الناس، وكم أسلم من كل مصدر.",
+        en: "The same page shows which sources bring the most people, and how many from each embraced Islam.",
+      },
+    ],
+  },
+  {
+    id: "2026-11-18-teacher-board",
+    date: "2026-11-18",
+    title: { ar: "لوحة المعلم: أنسب وقت لإرسال الدروس، وحال كل طالب", en: "Teacher's board: the best time to send lessons, and each learner" },
+    items: [
+      {
+        kind: "new",
+        ar: "«لوحة المعلم» في «المزيد»: لكل حلقة الساعة التي يفتح فيها الطلاب الدروس أسرع، وزر واحد لاعتمادها وقتًا للإرسال.",
+        en: "“Teacher's board” in More: for each circle, the hour learners open lessons fastest, and one button to send at that hour.",
+        href: "/teaching",
+      },
+      {
+        kind: "new",
+        ar: "في اللوحة نفسها حال كل طالب (ما فتحه، ونسبة إجاباته الصحيحة، وسرعة فتحه للدروس، وآخر نشاط)، والدروس التي يتعثر فيها الطلاب أكثر من غيرها.",
+        en: "The same board shows each learner (what they opened, correct answers, how fast they open lessons, last activity) and the lessons learners get stuck on most.",
+        href: "/teaching",
+      },
+      {
+        kind: "improved",
+        ar: "إذا وُجد وقت أنسب لإحدى حلقاتك يظهر لك تنبيه في «يومي».",
+        en: "When one of your circles has a better time to send, a note shows on My day.",
+        href: "/",
+      },
+    ],
+  },
+  {
+    id: "2026-11-18-four-places",
+    date: "2026-11-18",
+    title: { ar: "أربع وجهات فقط، و«يومي» يجمع عملك كله", en: "Four places only, and “My day” holds all your work" },
+    items: [
+      {
+        kind: "improved",
+        ar: "القائمة صارت أربع وجهات: يومي، المحادثات، المستفيدون، المزيد. وعلى الجوال تجدها في شريط أسفل الشاشة قريبة من إصبعك.",
+        en: "The menu is now four places: My day, Chats, People and More. On a phone they sit in a bar at the bottom of the screen, within reach of your thumb.",
+      },
+      {
+        kind: "new",
+        ar: "«يومي» صار الصفحة الأولى، وقائمة اليوم تضم حالات هداية التي حان موعد تواصلها حسب تصنيفها، مع أزرار اتصال وكتب وزيارة وهدية بضغطة واحدة.",
+        en: "“My day” is now the first page, and today's list includes Hidaya cases due for contact by their classification, with one-tap Call, Books, Visit and Gift buttons.",
+        href: "/",
+      },
+      {
+        kind: "improved",
+        ar: "«المستفيدون» يبدأ بالبرنامجين هداية والمسلم الجديد، وفي أعلى كل جدول مفتاح للتنقل بينهما. «إضافة محادثة» انتقلت إلى «المحادثات».",
+        en: "“People” opens on the two programs, Hidaya and New Muslim, with a switch at the top of each sheet. “Add a chat” moved into Chats.",
+        href: "/people",
+      },
+      {
+        kind: "new",
+        ar: "صفحة «المميزات» للإدارة: عطّل أي ميزة لا تحتاجها الآن فتختفي للجميع، وفعّلها متى احتجتها.",
+        en: "A “Features” page for management: switch off any feature you do not need now and it disappears for everyone, then switch it back on when needed.",
+        href: "/features",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-daily-ops",
     date: "2026-10-29",
     title: { ar: "قائمة اتصال يومية، وإرسال من جوالك، ومتابعة تلقائية", en: "A daily call list, sending from your phone, and automatic follow-ups" },

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookOpen, FileText, MessagesSquare, Search, StickyNote } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, FileText, Inbox, MessagesSquare, Search, StickyNote } from "lucide-react";
 import { sendLessonNow, sendMessage, sendTemplate, simulateReply } from "@/app/actions";
 import { Composer, PendingButton, ScrollToBottom } from "@/components/client";
 import { Avatar, Pill, StageBadge, WhatsAppSubmit, cx } from "@/components/ui";
 import { TEMPLATES, fillTemplate, type TemplateId } from "@/lib/content";
 import { readDb } from "@/lib/db";
+import { featureOn } from "@/lib/features";
 import { LANG_LABELS, langDir, translator } from "@/lib/i18n";
 import { DAY, awaitingReply, canAct, canOpen, canSeeName, displayName, firstName, formatDate, groupOf, lastInbound, lastMessage, localTime, messagesOf, relTime, visibleBeneficiaries, windowOpen } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -20,6 +21,7 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
   const t = translator(lang);
   const db = readDb();
   const now = Date.now();
+  const pendingShares = db.shares.filter((x) => x.userId === user.id).length;
 
   const list = visibleBeneficiaries(db, user)
     .filter((b) => b.stage !== "closed")
@@ -36,12 +38,21 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
   const Back = lang === "ar" ? ArrowRight : ArrowLeft;
 
   return (
-    <div className="-mx-4 -my-6 grid h-[calc(100dvh-108px)] min-h-[520px] grid-cols-1 overflow-hidden bg-surface lg:mx-0 lg:my-0 lg:h-[calc(100dvh-72px)] lg:grid-cols-[340px_minmax(0,1fr)] lg:rounded-2xl lg:border lg:border-border lg:shadow-card">
+    <div className="-mx-4 -mt-6 -mb-24 grid h-[calc(100dvh-124px)] min-h-[520px] grid-cols-1 overflow-hidden bg-surface lg:mx-0 lg:my-0 lg:h-[calc(100dvh-72px)] lg:grid-cols-[340px_minmax(0,1fr)] lg:rounded-2xl lg:border lg:border-border lg:shadow-card">
       <aside className={cx("flex min-h-0 flex-col border-border lg:border-e", selected && "hidden lg:flex")}>
         <div className="border-b border-border p-3">
           <div className="mb-2 flex items-center justify-between px-1">
             <h1 className="text-lg font-bold">{t("chats")}</h1>
-            <span className="text-[11px] text-muted">{t("officialNumber")}</span>
+            <span className="flex items-center gap-2 text-[11px] text-muted">
+              {t("officialNumber")}
+              {featureOn(db, "addChat") && (
+                <Link href="/share" className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 font-medium text-brand hover:bg-brand hover:text-white">
+                  <Inbox className="size-3.5" />
+                  {t("addChat")}
+                  {pendingShares > 0 && <span className="num">({pendingShares})</span>}
+                </Link>
+              )}
+            </span>
           </div>
           <form className="relative">
             <Search className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-faint ltr:left-3 rtl:right-3" />
@@ -162,7 +173,7 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
                     <div className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-muted">
                       {out && author && <span>{author.name.split(" ")[0]} ·</span>}
                       <span>{formatDate(m.at, lang)}</span>
-                      {m.status && <Ticks status={m.status} />}
+                      {m.status && <Ticks status={m.status} error={m.error} />}
                     </div>
                   </div>
                 </div>
@@ -225,7 +236,13 @@ export default async function ChatsPage({ searchParams }: { searchParams: Promis
   );
 }
 
-function Ticks({ status }: { status: "sent" | "delivered" | "read" }) {
+function Ticks({ status, error }: { status: "sent" | "delivered" | "read" | "failed"; error?: string }) {
+  if (status === "failed")
+    return (
+      <span className="text-[11px] font-semibold text-bad" aria-label="failed" title={error}>
+        !
+      </span>
+    );
   return (
     <svg viewBox="0 0 18 12" className={cx("h-3 w-4", status === "read" ? "text-sky-600" : "text-muted")} fill="none" stroke="currentColor" strokeWidth="1.6" aria-label={status}>
       <path d="M1 6.5 4.5 10 11 2" />

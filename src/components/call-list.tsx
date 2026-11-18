@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { CheckCircle2, ChevronDown, Moon, PhoneOutgoing, Sun } from "lucide-react";
-import { completeTask, recordPhoneSend } from "@/app/actions";
-import { SendFromPhone } from "@/components/client";
+import { completeTask, logHidaya, recordPhoneSend } from "@/app/actions";
+import { PendingButton, SendFromPhone } from "@/components/client";
+import { FOLLOWUP_ICONS } from "@/components/fields";
+import { reasonText as recontactText } from "@/components/reasons";
 import { QuickLog } from "@/components/quick-log";
 import { Avatar, Empty, PersonName, StageBadge, cx } from "@/components/ui";
 import { centerHourFor, type CallItem, type Reason } from "@/lib/daily";
 import { langDir, type T } from "@/lib/i18n";
 import { DAY, canSeeName, displayName, formatHour, relTime } from "@/lib/logic";
+import { featureOn } from "@/lib/features";
 import { phoneOptions, waNumber } from "@/lib/phone-send";
+import { FOLLOWUP_LABELS } from "@/lib/programs";
+import { HIDAYA_FOLLOWUPS } from "@/lib/types";
 import type { Beneficiary, DB, UiLang, User } from "@/lib/types";
 
 type Ctx = { db: DB; user: User; lang: UiLang; t: T; origin: string };
@@ -20,6 +25,7 @@ const TONE: Record<Reason["kind"], string> = {
   lesson: "bg-info-soft text-info",
   new: "bg-info-soft text-info",
   cold: "bg-surface-2 text-muted",
+  recontact: "bg-gold-soft text-gold",
 };
 
 function reasonText(r: Reason, { lang, t }: Ctx, now: number) {
@@ -38,6 +44,8 @@ function reasonText(r: Reason, { lang, t }: Ctx, now: number) {
       return t("reasonNew");
     case "cold":
       return t("reasonCold", { when: relTime(now - r.days * DAY, lang, now) });
+    case "recontact":
+      return recontactText(r.reason, lang, t);
   }
 }
 
@@ -85,7 +93,7 @@ function Row({ item, ctx, now }: { item: CallItem; ctx: Ctx; now: number }) {
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <PersonName name={name} href={`/beneficiaries/${b.id}`} />
+            <PersonName name={name} href={b.program === "hidaya" ? `/hidaya/${b.id}` : `/beneficiaries/${b.id}`} />
             <StageBadge stage={b.stage} lang={lang} />
             {item.doneToday && <span className="text-[11px] font-medium text-ok">✓</span>}
           </div>
@@ -102,13 +110,31 @@ function Row({ item, ctx, now }: { item: CallItem; ctx: Ctx; now: number }) {
           </div>
           {!item.doneToday && (
             <div className="mt-2 flex flex-wrap items-start gap-2">
-              <PhoneSend b={b} ctx={ctx} />
-              <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} compact />
+              {featureOn(db, "phoneSend") && <PhoneSend b={b} ctx={ctx} />}
+              {b.program === "hidaya" && b.hidaya ? <HidayaQuickLog b={b} lang={lang} /> : <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} compact />}
             </div>
           )}
         </div>
       </div>
     </li>
+  );
+}
+
+/** One tap after a call, books, a visit or a gift: it ticks the هداية boxes and sets the next date. */
+function HidayaQuickLog({ b, lang }: { b: Beneficiary; lang: UiLang }) {
+  return (
+    <form action={logHidaya} className="mt-1.5 flex flex-wrap gap-1.5">
+      <input type="hidden" name="beneficiaryId" value={b.id} />
+      {HIDAYA_FOLLOWUPS.map((k) => {
+        const Icon = FOLLOWUP_ICONS[k];
+        return (
+          <PendingButton key={k} name="kind" value={k} className="flex h-7 items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 text-[11px] font-medium transition hover:border-brand/40 hover:bg-brand-tint active:scale-95">
+            <Icon className="size-3.5" />
+            {FOLLOWUP_LABELS[k][lang]}
+          </PendingButton>
+        );
+      })}
+    </form>
   );
 }
 
@@ -130,7 +156,7 @@ export function CallList({ items, ctx, showAll }: { items: CallItem[]; ctx: Ctx;
         <Empty icon={CheckCircle2}>{ctx.t("allCaughtUp")}</Empty>
       )}
       {!showAll && todo.length > LIMIT && (
-        <Link href="/today?all=1" className="mt-2 inline-block text-sm font-medium text-brand hover:underline">
+        <Link href="/?all=1" className="mt-2 inline-block text-sm font-medium text-brand hover:underline">
           {ctx.t("showAll", { n: todo.length })}
         </Link>
       )}

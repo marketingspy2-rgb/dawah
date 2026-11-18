@@ -9,6 +9,8 @@ import { Button, Card, Field, Notice, PageHeader, Pill, WhatsAppSubmit, cx } fro
 import { TEMPLATES, fillTemplate } from "@/lib/content";
 import { LEARNER_UI, SPEECH_LANG, missingLanguages } from "@/lib/curriculum";
 import { readDb } from "@/lib/db";
+import { featureOn, requireFeature } from "@/lib/features";
+import { FLAG_LABELS, checkContent } from "@/lib/governance";
 import { LANG_NATIVE, langDir, translator } from "@/lib/i18n";
 import { canAct, displayName, formatDate, lessonStats, relTime, trackLessons, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -31,6 +33,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "lessons");
 
   const isNew = id === "new";
   const found = db.lessons.find((x) => x.id === id);
@@ -57,6 +60,8 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
   const canEdit = user.role !== "caller";
   const canApprove = user.role === "supervisor" || user.role === "admin";
   const missing = missingLanguages(lesson, LANGS);
+  // The Arabic text is what supervisors approve; flag what needs a second look before it goes out.
+  const contentFlags = featureOn(db, "contentCheck") ? checkContent([lesson.title.ar, lesson.point.ar, lesson.question.ar, lesson.practice.ar].join("\n")) : [];
   const total = trackLessons(db, trackId, false).length;
   const stats = found ? lessonStats(db, found.id) : null;
   const filled = (x: EditLang) => [lesson.title, lesson.point, lesson.question, lesson.practice].every((f) => (f[x] ?? "").trim());
@@ -104,6 +109,12 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
         <Notice tone="warn">
           {t("missingLangs", { langs: missing.map((x) => LANG_NATIVE[x]).join("، ") })} · {t("readyNeedsAll")}
           {!canApprove && ` ${t("onlySupervisorApproves")}`}
+        </Notice>
+      )}
+
+      {contentFlags.length > 0 && (
+        <Notice tone="warn">
+          {contentFlags.map((f) => FLAG_LABELS[f][lang]).join(" · ")}
         </Notice>
       )}
 

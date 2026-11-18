@@ -1,4 +1,6 @@
 import { CENTER_TZ, awaitingReply, endOfToday, learnerState, nextScheduled } from "./logic";
+import { isoDay } from "./hijri";
+import { recontactReasons, type RecontactReason } from "./programs";
 import { DAY, HOUR, zonedParts } from "./time";
 import type { Beneficiary, DB, Message, Task, User } from "./types";
 
@@ -15,7 +17,9 @@ export type Reason =
   | { kind: "note"; text: string }
   | { kind: "lesson"; at: number; reminder: boolean }
   | { kind: "new" }
-  | { kind: "cold"; days: number };
+  | { kind: "cold"; days: number }
+  /** A هداية case whose classification says it is time to reach them again. */
+  | { kind: "recontact"; reason: RecontactReason };
 
 export type CallItem = {
   b: Beneficiary;
@@ -43,6 +47,7 @@ export function callList(db: DB, user: User, now = Date.now()): CallItem[] {
   const ids = new Set(mine.map((b) => b.id));
   const startOfDay = endOfToday(new Date(now)) + 1 - DAY;
   const eod = startOfDay + DAY - 1;
+  const today = isoDay(now);
 
   const lastOut = new Map<string, Message>();
   const outToday = new Set<string>();
@@ -110,10 +115,19 @@ export function callList(db: DB, user: User, now = Date.now()): CallItem[] {
     if (b.stage === "new" && !contact) {
       reasons.push({ kind: "new" });
       score += 65;
-    } else if ((b.stage === "contacted" || b.stage === "interested" || b.stage === "learning") && contact && now - contact > COLD_DAYS * DAY && !task) {
+    } else if (b.program !== "hidaya" && (b.stage === "contacted" || b.stage === "interested" || b.stage === "learning") && contact && now - contact > COLD_DAYS * DAY && !task) {
       const days = Math.floor((now - contact) / DAY);
       reasons.push({ kind: "cold", days });
       score += 35 + Math.min(20, days);
+    }
+
+    if (b.program === "hidaya") {
+      // The association's own schedule: next contact date and days per classification.
+      const due = recontactReasons(db, b, today).find((r) => r.kind !== "visits");
+      if (due && !reasons.some((r) => r.kind === "new")) {
+        reasons.push({ kind: "recontact", reason: due });
+        score += due.kind === "due" ? 55 : due.kind === "never" ? 50 : 40;
+      }
     }
 
     const localHour = zonedParts(now, b.timezone).h;

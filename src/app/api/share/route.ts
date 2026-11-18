@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { stageShare, textFromFile } from "@/lib/chat-import";
 import { loadDb, mutate } from "@/lib/db";
-import { AFTER_LOGIN_COOKIE, USER_COOKIE } from "@/lib/session";
+import { AFTER_LOGIN_COOKIE, USER_COOKIE, userIdFromCookie } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     if (typeof v === "string" && v.trim() && !parts.some((p) => p.includes(v.trim()))) parts.push(v.trim());
   }
 
-  const userId = (await cookies()).get(USER_COOKIE)?.value ?? null;
+  const userId = await userIdFromCookie((await cookies()).get(USER_COOKIE)?.value);
   const db = await loadDb();
   const known = userId && db.users.some((u) => u.id === userId) ? userId : null;
   const id = parts.length ? await mutate((d) => stageShare(d, parts.join("\n"), fileName, known)) : null;

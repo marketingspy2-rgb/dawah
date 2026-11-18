@@ -1,9 +1,15 @@
 "use server";
 
+import { CAPTURE_MARK, sourceByCode } from "@/lib/capture";
+import { FEATURES, featureOn } from "@/lib/features";
+import { canAnswer } from "@/lib/questions";
+import { auditEntry, blankBeneficiary, duplicateOf, intakeCase } from "@/lib/intake";
+import { sendNext } from "@/lib/sending";
+import { deliverOutbox, publicOrigin } from "@/lib/whatsapp";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BENEFICIARY_LINES, TEMPLATES, fillTemplate, guessCountryFromPhone, type TemplateId } from "@/lib/content";
+import { BENEFICIARY_LINES, TEMPLATES, fillTemplate, type TemplateId } from "@/lib/content";
 import { missingLanguages } from "@/lib/curriculum";
 import { loadDb, mutate, newId, readDb, resetDb } from "@/lib/db";
 import {
@@ -16,26 +22,28 @@ import {
   canOpen,
   firstName,
   groupForMember,
-  nextScheduled,
   suggestAssignee,
   windowOpen,
 } from "@/lib/logic";
 import { applyImport, guessBeneficiarySender, parseWhatsAppExport, stageShare, textFromFile } from "@/lib/chat-import";
-import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
+import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser, sessionCookieFor } from "@/lib/session";
+import { MIN_PASSWORD, hashPassword, verifyPassword } from "@/lib/auth";
 import { addDays, fromHijri, isoDay } from "@/lib/hijri";
 import { CONVERTED, DEFAULT_RECONTACT_DAYS, FOLLOWUP_LABELS, applyHidayaLog, emptyHidaya, emptyMuslim, langCodeFor, langCodeOf, nextSerial, recontactDays } from "@/lib/programs";
 import type { Beneficiary, DB, HidayaFollowup, Lang, Lesson, Message, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
 import { HIDAYA_FOLLOWUPS, LANGS, LIST_KEYS, MUSLIM_LESSONS, STAGES, TOUCH_KINDS } from "@/lib/types";
 
-function audit(db: DB, user: User | null, action: string, target: string) {
-  db.audit.unshift({ id: newId("AU"), userId: user?.id ?? "beneficiary", action, target, at: new Date().toISOString() });
-  db.audit.length = Math.min(db.audit.length, 500);
-}
+const audit = auditEntry;
 
 function getBeneficiary(db: DB, user: User, id: string, write = true): Beneficiary {
   const b = db.beneficiaries.find((x) => x.id === id);
   if (!b || !canOpen(db, user, b) || (write && !canAct(db, user, b))) throw new Error("Not allowed");
   return b;
+}
+
+/** Sends what the action just saved through the official WhatsApp number, when it is set up. */
+async function deliver() {
+  await deliverOutbox(publicOrigin(await headers()));
 }
 
 function refresh() {
@@ -54,11 +62,34 @@ async function backWith(params: Record<string, string | number>, fallback = "/")
 
 export async function login(formData: FormData) {
   const id = String(formData.get("userId"));
-  const user = (await loadDb()).users.find((u) => u.id === id);
+  const db = await loadDb();
+  // Once password sign-in is on, picking a name is no longer enough.
+  if (featureOn(db, "passwordLogin")) redirect("/login");
+  const user = db.users.find((u) => u.id === id && u.status !== "left");
   if (!user) return;
+  await startSession(user.id);
+}
+
+/** Sign in with a username and password, once management has switched password sign-in on. */
+export async function loginWithPassword(formData: FormData) {
+  const username = str(formData, "username").toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const db = await loadDb();
+  const user = db.users.find((u) => u.username?.toLowerCase() === username && u.status !== "left");
+  // Same wait and same message whether the name or the password is wrong.
+  const ok = await verifyPassword(password, user?.passwordHash ?? "pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAA");
+  if (!user || !ok) {
+    await mutate((d) => audit(d, user ?? null, "login_failed", username.slice(0, 40)));
+    redirect("/login?err=1");
+  }
+  await mutate((d) => audit(d, user, "login", user.id));
+  await startSession(user.id);
+}
+
+async function startSession(id: string) {
   const jar = await cookies();
   // Stay signed in on the phone, so chats shared from WhatsApp land straight in the platform.
-  jar.set(USER_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
+  jar.set(USER_COOKIE, await sessionCookieFor(id), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
   await mutate((db) => {
     const u = db.users.find((x) => x.id === id)!;
     u.lastSeenAt = new Date().toISOString();
@@ -66,6 +97,38 @@ export async function login(formData: FormData) {
   const next = jar.get(AFTER_LOGIN_COOKIE)?.value;
   jar.delete(AFTER_LOGIN_COOKIE);
   redirect(next?.startsWith("/share/") ? next : "/");
+}
+
+/** Management (or a supervisor for their team) sets someone's sign-in name and password; anyone can change their own. */
+export async function setCredentials(formData: FormData) {
+  const user = await requireUser();
+  const targetId = str(formData, "userId");
+  const username = str(formData, "username").toLowerCase().replace(/\s+/g, "");
+  const password = String(formData.get("password") ?? "");
+  let error = "";
+  if (password && password.length < MIN_PASSWORD) error = "short";
+  const hash = password && !error ? await hashPassword(password) : null;
+  await mutate((db) => {
+    const target = db.users.find((u) => u.id === targetId);
+    if (!target || (target.id !== user.id && !canManageUser(db, user, target))) throw new Error("Not allowed");
+    if (error) return;
+    if (username && username !== target.username) {
+      if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+        error = "username";
+        return;
+      }
+      if (db.users.some((u) => u.id !== target.id && u.username === username)) {
+        error = "taken";
+        return;
+      }
+      // Only management and supervisors give sign-in names.
+      if (target.id !== user.id || user.role === "admin") target.username = username;
+    }
+    if (hash) target.passwordHash = hash;
+    audit(db, user, hash ? "set_password" : "set_username", target.id);
+  });
+  refresh();
+  await backWith(error ? { credErr: error } : { credSaved: 1 });
 }
 
 export async function logout() {
@@ -100,6 +163,7 @@ export async function sendMessage(formData: FormData) {
     db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text, translation: null, at: new Date().toISOString(), authorId: user.id, status: "sent", kind: "text" });
     audit(db, user, "send_message", b.id);
   });
+  await deliver();
   refresh();
 }
 
@@ -125,6 +189,7 @@ export async function sendTemplate(formData: FormData) {
     });
     audit(db, user, `send_template:${templateId}`, b.id);
   });
+  await deliver();
   refresh();
 }
 
@@ -145,28 +210,6 @@ export async function simulateReply(formData: FormData) {
 
 // ---------- Lessons on WhatsApp ----------
 
-/** Sends the learner's next item now: their next lesson, or a reminder for the one still open. */
-function sendNext(db: DB, user: User, b: Beneficiary): boolean {
-  const item = nextScheduled(db, b, Date.now() - 30 * DAY);
-  if (!item) return false;
-  const now = new Date().toISOString();
-  const lesson = item.lesson;
-  const vars = { name: firstName(b), title: lesson.title[b.language] ?? lesson.title.en, link: "{link}" };
-  if (item.kind === "reminder" && item.event) {
-    const tpl = TEMPLATES.lesson_reminder;
-    item.event.remindedAt = now;
-    db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, { ...vars, title: lesson.title.ar }), at: now, authorId: user.id, status: "sent", kind: "lesson", eventId: item.event.id });
-    audit(db, user, "send_reminder", b.id);
-    return true;
-  }
-  const eventId = `ev_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
-  db.events.push({ id: eventId, beneficiaryId: b.id, lessonId: lesson.id, sentAt: now, sentBy: user.id, remindedAt: null, openedAt: null, completedAt: null, correct: null });
-  const tpl = TEMPLATES.lesson_ready;
-  db.messages.push({ id: newId("M"), beneficiaryId: b.id, direction: "out", text: fillTemplate(tpl[b.language], vars), translation: fillTemplate(tpl.ar, { ...vars, title: lesson.title.ar }), at: now, authorId: user.id, status: "sent", kind: "lesson", eventId });
-  audit(db, user, `send_lesson:${lesson.id}`, b.id);
-  return true;
-}
-
 export async function sendLessonNow(formData: FormData) {
   const user = await requireUser();
   const id = String(formData.get("beneficiaryId"));
@@ -175,6 +218,7 @@ export async function sendLessonNow(formData: FormData) {
     const b = getBeneficiary(db, user, id);
     if (sendNext(db, user, b)) sent = 1;
   });
+  await deliver();
   refresh();
   await backWith({ sent });
 }
@@ -191,6 +235,7 @@ export async function sendGroupNow(formData: FormData) {
       if (sendNext(db, user, b)) sent++;
     }
   });
+  await deliver();
   refresh();
   await backWith({ sent });
 }
@@ -214,6 +259,7 @@ export async function sendSpecificLesson(formData: FormData) {
     audit(db, user, `send_lesson:${lessonId}`, b.id);
     sent = 1;
   });
+  await deliver();
   refresh();
   await backWith({ sent });
 }
@@ -356,6 +402,24 @@ export async function updateGroupSchedule(formData: FormData) {
   });
   refresh();
   await backWith({ saved: 1 });
+}
+
+/** One tap on the teacher's board: send this group's lessons at the hour learners open them most. */
+export async function applyGroupHour(formData: FormData) {
+  const user = await requireUser();
+  const groupId = String(formData.get("groupId"));
+  const hour = Number(formData.get("hour"));
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return;
+  await mutate((db) => {
+    const group = db.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    const owner = db.users.find((u) => u.id === group.ownerId);
+    if (!owner || (owner.id !== user.id && !canManageUser(db, user, owner))) throw new Error("Not allowed");
+    group.schedule.hour = hour;
+    audit(db, user, "group_best_hour", group.id);
+  });
+  refresh();
+  await backWith({ applied: hour });
 }
 
 export async function moveToGroup(formData: FormData) {
@@ -539,56 +603,12 @@ function readCommon(fd: FormData, b: Beneficiary) {
   if (gender === "m" || gender === "f") b.gender = gender;
 }
 
-function blankBeneficiary(db: DB, user: User, program: "hidaya" | "muslim"): Beneficiary {
-  const id = `B-${1000 + db.beneficiaries.length + 1}`;
-  const now = new Date().toISOString();
-  return {
-    id,
-    program,
-    city: "",
-    workplace: "",
-    profession: "",
-    nationality: "",
-    languageLabel: "",
-    hidaya: null,
-    muslim: null,
-    name: "",
-    alias: id,
-    gender: user.gender,
-    language: user.languages[0] ?? "hi",
-    country: "SA",
-    timezone: "Asia/Riyadh",
-    phone: "",
-    preferredHour: 19,
-    stage: program === "muslim" ? "muslim" : "new",
-    stageHistory: [{ stage: program === "muslim" ? "muslim" : "new", at: now }],
-    assignedTo: user.id,
-    introducedBy: null,
-    groupId: null,
-    sensitive: false,
-    background: "",
-    needs: "",
-    objections: [],
-    source: "",
-    createdAt: now,
-    convertedAt: program === "muslim" ? now : null,
-    summary: null,
-    optedOut: false,
-  };
-}
-
 function staffPick(db: DB, user: User, id: string, role: StaffRole | null) {
   const u = db.users.find((x) => x.id === id && (role ? x.role === role : x.role === "caller" || x.role === "teacher"));
   if (!u) return null;
   if (user.role === "admin" || u.id === user.id) return u;
   if (user.role === "supervisor" && u.teamId === user.teamId) return u;
   return null;
-}
-
-function duplicateOf(db: DB, phone: string, except?: string) {
-  const digits = (s: string) => s.replace(/\D/g, "").replace(/^(966|0)/, "");
-  const p = digits(phone);
-  return p.length >= 7 ? db.beneficiaries.find((x) => x.id !== except && digits(x.phone) === p) : undefined;
 }
 
 export async function addHidaya(formData: FormData) {
@@ -1114,3 +1134,92 @@ export async function createGroup(formData: FormData) {
   redirect(`/groups/${id}`);
 }
 
+
+/** Management switches features on or off for everyone. Core features always stay on. */
+export async function saveFeatures(formData: FormData) {
+  const user = await requireUser();
+  if (user.role !== "admin") throw new Error("Not allowed");
+  let blocked = false;
+  await mutate((db) => {
+    const features: Record<string, boolean> = {};
+    for (const f of FEATURES) if (!f.core) features[f.key] = formData.get(`f_${f.key}`) === "on";
+    // Turning on password sign-in without a password of your own would lock management out.
+    const me = db.users.find((u) => u.id === user.id);
+    if (features.passwordLogin && !(me?.username && me.passwordHash)) {
+      features.passwordLogin = false;
+      blocked = true;
+    }
+    db.settings.features = features;
+    audit(db, user, "features", "settings");
+  });
+  refresh();
+  redirect(blocked ? "/features?saved=1&needPassword=1" : "/features?saved=1");
+}
+
+// ---------- Capture links (public, no login) ----------
+
+/**
+ * Someone scanned a source's QR code or opened its link and filled the short form.
+ * A new هداية case opens with the source filled in and goes to the best-matched caller;
+ * the follow-up rules then put a first contact on that caller's day.
+ */
+export async function captureSubmit(code: string, formData: FormData) {
+  const db0 = await loadDb();
+  const source = sourceByCode(db0, code);
+  if (!source || !featureOn(db0, "captureLinks")) return;
+  const name = str(formData, "name").slice(0, 80);
+  const phone = str(formData, "phone").replace(/[^\d+]/g, "").slice(0, 20);
+  const lang = str(formData, "lang") as Lang;
+  const gender = str(formData, "gender") === "f" ? "f" : "m";
+  const message = str(formData, "message").slice(0, 600);
+  if (!name || phone.replace(/\D/g, "").length < 7 || !LANGS.includes(lang)) redirect(`/c/${code}?lang=${LANGS.includes(lang) ? lang : ""}&err=1`);
+  await mutate((db) => {
+    const now = new Date();
+    const existing = duplicateOf(db, phone);
+    if (existing) {
+      // Already known: keep one file and tell whoever holds it.
+      db.notes.push({ id: newId("N"), beneficiaryId: existing.id, authorId: existing.assignedTo, text: `عاد عبر رابط «${source}»${message ? `: ${message}` : ""}`, at: now.toISOString(), needsContact: true });
+      audit(db, null, "capture_again", existing.id);
+      return;
+    }
+    intakeCase(db, { name, phone, lang, gender, mark: CAPTURE_MARK, source, reason: `رابط «${source}»`, message, action: "capture" });
+  });
+  refresh();
+  redirect(`/c/${code}?lang=${lang}&done=1`);
+}
+
+// ---------- Ask the scholars ----------
+
+export async function askScholars(formData: FormData) {
+  const user = await requireUser();
+  const text = str(formData, "text").slice(0, 2000);
+  const beneficiaryId = str(formData, "beneficiaryId") || null;
+  if (!text) return;
+  await mutate((db) => {
+    if (beneficiaryId) getBeneficiary(db, user, beneficiaryId, false);
+    db.questions.push({ id: newId("Q"), beneficiaryId, askedBy: user.id, text, at: new Date().toISOString(), answer: null, answeredBy: null, answeredAt: null });
+    audit(db, user, "ask_scholars", beneficiaryId ?? "general");
+  });
+  refresh();
+  await backWith({ asked: 1 });
+}
+
+/** The answer goes back to whoever asked, and onto the person's file as a note to pass on. */
+export async function answerQuestion(formData: FormData) {
+  const user = await requireUser();
+  const id = str(formData, "questionId");
+  const answer = str(formData, "answer").slice(0, 4000);
+  if (!answer) return;
+  await mutate((db) => {
+    const q = db.questions.find((x) => x.id === id);
+    if (!q || !canAnswer(db, user, q)) throw new Error("Not allowed");
+    const now = new Date().toISOString();
+    q.answer = answer;
+    q.answeredBy = user.id;
+    q.answeredAt = now;
+    if (q.beneficiaryId) db.notes.push({ id: newId("N"), beneficiaryId: q.beneficiaryId, authorId: user.id, text: `جواب أهل العلم: ${answer}`, at: now, needsContact: true });
+    audit(db, user, "answer_question", q.id);
+  });
+  refresh();
+  await backWith({ answered: 1 });
+}

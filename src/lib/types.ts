@@ -29,6 +29,9 @@ export type User = {
   teamId: string | null;
   status: "available" | "leave" | "left";
   lastSeenAt: string | null;
+  /** Sign-in name and password, set by management. Used once password sign-in is switched on. */
+  username?: string;
+  passwordHash?: string;
 };
 
 export type Team = { id: string; name: string; supervisorId: string };
@@ -157,7 +160,11 @@ export type Message = {
   translation: string | null;
   at: string;
   authorId: string | null;
-  status: "sent" | "delivered" | "read" | null;
+  status: "sent" | "delivered" | "read" | "failed" | null;
+  /** WhatsApp's id for the message once sent through the official number. */
+  waId?: string;
+  /** Why WhatsApp refused it, when it failed. */
+  error?: string;
   kind: MessageKind;
   /** Lesson link carried by a lesson message. */
   eventId?: string;
@@ -304,6 +311,27 @@ export type Settings = {
   lists: Record<ListKey, string[]>;
   /** Days between contacts for each هداية classification before the case needs contact again. */
   recontactDays: Record<string, number>;
+  /** Features management has switched off. Missing means on, so new features start on. */
+  features?: Partial<Record<string, boolean>>;
+  /** Last time the scheduler ran and how many lessons and reminders it sent. */
+  lastCron?: { at: string; sent: number; delivered: number; failed: number };
+  /** Signs the session cookie when no SESSION_SECRET is configured. Made on first use. */
+  sessionSecret?: string;
+};
+
+/**
+ * "Ask the scholars": a question a caller or teacher could not answer on their own,
+ * about a beneficiary or in general. A supervisor or management answers it or passes it on.
+ */
+export type Question = {
+  id: string;
+  beneficiaryId: string | null;
+  askedBy: string;
+  text: string;
+  at: string;
+  answer: string | null;
+  answeredBy: string | null;
+  answeredAt: string | null;
 };
 
 export type AuditEntry = {
@@ -334,4 +362,5 @@ export type DB = {
   shares: PendingShare[];
   settings: Settings;
   audit: AuditEntry[];
+  questions: Question[];
 };

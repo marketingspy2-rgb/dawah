@@ -48,7 +48,10 @@ export function defaultSettings(): Settings {
 /** Brings saved demo data from an older version up to date without losing what people entered. */
 export function migrate(db: DB): DB | null {
   // Version 5 rebuilt the files on the association's two programs: older demo data starts fresh.
-  return db.version === DB_VERSION ? db : null;
+  if (db.version !== DB_VERSION) return null;
+  // Added later without a new version, so saved data keeps what people entered.
+  db.questions ??= [];
+  return db;
 }
 
 /** Small deterministic random generator so every reset gives the same demo. */
@@ -475,6 +478,19 @@ export function createSeed(now = new Date()): DB {
 
   const hidayaLogs = associationFiles({ r, pick, between, nowMs, iso, nextId, beneficiaries, tasks, assignments, notes, callers, teachers, supervisorOf });
 
+  // Two questions to the scholars: one still waiting, one already answered.
+  const asked = beneficiaries.filter((b) => b.program === "hidaya" && b.assignedTo === "U-C01").slice(0, 2);
+  const questions: DB["questions"] = asked.map((b, i) => ({
+    id: nextId("Q"),
+    beneficiaryId: b.id,
+    askedBy: "U-C01",
+    text: i === 0 ? "يسأل: لماذا يصوم المسلمون شهرًا كاملًا، وهل يجوز للعامل في الحر أن يفطر؟ أريد جوابًا مختصرًا أنقله له." : "يقول إن زوجته مسيحية ويخاف أن يُطلب منه تركها إذا أسلم. كيف أطمئنه؟",
+    at: iso(nowMs - (i === 0 ? 5 : 30) * HOUR),
+    answer: i === 0 ? null : "يُطمأن بأن الإسلام يبيح للمسلم أن يبقى مع زوجته الكتابية، ولا يُطلب منه فراقها. قال الله تعالى: ﴿وَالْمُحْصَنَاتُ مِنَ الَّذِينَ أُوتُوا الْكِتَابَ مِن قَبْلِكُمْ﴾ (المائدة: 5).",
+    answeredBy: i === 0 ? null : supervisorOf("T1"),
+    answeredAt: i === 0 ? null : iso(nowMs - 20 * HOUR),
+  }));
+
   return {
     version: DB_VERSION,
     seededAt,
@@ -495,6 +511,7 @@ export function createSeed(now = new Date()): DB {
     shares: [],
     settings: defaultSettings(),
     audit: [],
+    questions,
   };
 }
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Activity, BarChart3, Clock, Database, HeartPulse, Inbox, MessageCircle, MessagesSquare, PhoneCall, RefreshCw, Reply, Users } from "lucide-react";
 import { Avatar, Bar, Card, Empty, LinkButton, Notice, PageHeader, PersonName, Pill, RoleBadge, Stat, Tabs, cx } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { TOUCH_LABELS, translator, type T } from "@/lib/i18n";
 import { STALE_DAYS, conversationInsights, type Insights } from "@/lib/insights";
 import { CENTER_TZ, DAY, displayName, formatHour, isStaff, relTime, staffUnder, visibleBeneficiaries } from "@/lib/logic";
@@ -19,6 +20,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "chatInsights");
   const now = Date.now();
   const staff = isStaff(user);
   const list = visibleBeneficiaries(db, user).filter((b) => !staff || b.assignedTo === user.id);

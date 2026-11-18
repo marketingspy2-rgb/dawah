@@ -5,6 +5,7 @@ import { PendingButton } from "@/components/client";
 import { Avatar, Card, Notice, PageHeader, StageBadge, cx } from "@/components/ui";
 import { guessBeneficiarySender, parseWhatsAppExport, suggestBeneficiaries, summarize } from "@/lib/chat-import";
 import { mutate, readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { translator } from "@/lib/i18n";
 import { canAct, displayName, formatDate, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -40,6 +41,7 @@ export default async function SharedChatPage({ params }: { params: Promise<{ id:
   }
 
   const db = readDb();
+  requireFeature(db, "addChat");
   const lines = parseWhatsAppExport(share.text);
   const sum = summarize(lines);
   const candidates = visibleBeneficiaries(db, user).filter((b) => b.stage !== "closed" && canAct(db, user, b));
