@@ -304,3 +304,70 @@ export function SendFromPhone({
     </form>
   );
 }
+
+export type MainNavItem = {
+  key: string;
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  badge?: number;
+  dot?: boolean;
+  /** Paths that belong to this place. "/" matches only the home page itself. */
+  match: string[];
+};
+
+/** Which of the four places the current page belongs to; anything unlisted belongs to the last one ("More"). */
+function activeKey(items: MainNavItem[], pathname: string) {
+  const hit = items.find((it) => it.match.some((m) => (m === "/" ? pathname === "/" : pathname === m || pathname.startsWith(`${m}/`))));
+  return hit?.key ?? items[items.length - 1]?.key;
+}
+
+/** The four places: a column in the sidebar on wide screens, a tab bar at the bottom on phones. */
+export function MainNav({ items, variant }: { items: MainNavItem[]; variant: "sidebar" | "tabbar" }) {
+  const pathname = usePathname();
+  const active = activeKey(items, pathname);
+  if (variant === "sidebar") {
+    return (
+      <div className="space-y-1">
+        {items.map((it) => {
+          const on = it.key === active;
+          return (
+            <Link
+              key={it.key}
+              href={it.href}
+              aria-current={on ? "page" : undefined}
+              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition ${on ? "bg-white/12 font-semibold text-white" : "text-night-text hover:bg-white/6 hover:text-white"}`}
+            >
+              <span className={`grid size-5 shrink-0 place-items-center [&>svg]:size-5 ${on ? "" : "opacity-75 group-hover:opacity-100"}`}>{it.icon}</span>
+              <span className="flex-1">{it.label}</span>
+              {it.dot && !on && <span className="size-2 rounded-full bg-gold" aria-hidden />}
+              {!!it.badge && <span className="num min-w-5 rounded-full bg-gold px-1.5 text-center text-[11px] leading-5 font-semibold text-white">{it.badge}</span>}
+            </Link>
+          );
+        })}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-4">
+      {items.map((it) => {
+        const on = it.key === active;
+        return (
+          <Link
+            key={it.key}
+            href={it.href}
+            aria-current={on ? "page" : undefined}
+            className={`relative flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[11px] transition ${on ? "font-semibold text-brand" : "text-muted"}`}
+          >
+            <span className={`relative grid h-7 w-12 place-items-center rounded-full [&>svg]:size-5 ${on ? "bg-brand-soft" : ""}`}>
+              {it.icon}
+              {!!it.badge && <span className="num absolute -top-1 end-0.5 min-w-4 rounded-full bg-gold px-1 text-center text-[10px] leading-4 font-semibold text-white">{it.badge}</span>}
+              {it.dot && !it.badge && !on && <span className="absolute top-0 end-2 size-2 rounded-full bg-gold" aria-hidden />}
+            </span>
+            {it.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}

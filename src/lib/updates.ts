@@ -15,6 +15,36 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-four-places",
+    date: "2026-11-18",
+    title: { ar: "أربع وجهات فقط، و«يومي» يجمع عملك كله", en: "Four places only, and “My day” holds all your work" },
+    items: [
+      {
+        kind: "improved",
+        ar: "القائمة صارت أربع وجهات: يومي، المحادثات، المستفيدون، المزيد. وعلى الجوال تجدها في شريط أسفل الشاشة قريبة من إصبعك.",
+        en: "The menu is now four places: My day, Chats, People and More. On a phone they sit in a bar at the bottom of the screen, within reach of your thumb.",
+      },
+      {
+        kind: "new",
+        ar: "«يومي» صار الصفحة الأولى، وقائمة اليوم تضم حالات هداية التي حان موعد تواصلها حسب تصنيفها، مع أزرار اتصال وكتب وزيارة وهدية بضغطة واحدة.",
+        en: "“My day” is now the first page, and today's list includes Hidaya cases due for contact by their classification, with one-tap Call, Books, Visit and Gift buttons.",
+        href: "/",
+      },
+      {
+        kind: "improved",
+        ar: "«المستفيدون» يبدأ بالبرنامجين هداية والمسلم الجديد، وفي أعلى كل جدول مفتاح للتنقل بينهما. «إضافة محادثة» انتقلت إلى «المحادثات».",
+        en: "“People” opens on the two programs, Hidaya and New Muslim, with a switch at the top of each sheet. “Add a chat” moved into Chats.",
+        href: "/people",
+      },
+      {
+        kind: "new",
+        ar: "صفحة «المميزات» للإدارة: عطّل أي ميزة لا تحتاجها الآن فتختفي للجميع، وفعّلها متى احتجتها.",
+        en: "A “Features” page for management: switch off any feature you do not need now and it disappears for everyone, then switch it back on when needed.",
+        href: "/features",
+      },
+    ],
+  },
+  {
     id: "2026-10-29-daily-ops",
     date: "2026-10-29",
     title: { ar: "قائمة اتصال يومية، وإرسال من جوالك، ومتابعة تلقائية", en: "A daily call list, sending from your phone, and automatic follow-ups" },

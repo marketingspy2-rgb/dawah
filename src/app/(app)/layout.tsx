@@ -1,19 +1,17 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { Activity, BarChart3, BookOpen, CalendarClock, ClipboardList, Gauge, HeartHandshake, Home, Inbox, Megaphone, Languages, ListChecks, LogOut, MessagesSquare, Network, PhoneCall, Repeat, RotateCcw, Sprout, UsersRound } from "lucide-react";
+import { Grid2x2, Home, Languages, LogOut, MessagesSquare, RotateCcw, UsersRound } from "lucide-react";
 import { logout, resetDemo, toggleLang } from "@/app/actions";
-import { NavLink } from "@/components/client";
+import { MainNav, type MainNavItem } from "@/components/client";
 import { Avatar } from "@/components/ui";
 import { mutate, readDb } from "@/lib/db";
+import { featureOn } from "@/lib/features";
 import { roleLabel, translator } from "@/lib/i18n";
-import { HOUR, awaitingReply, isStaff, openTasks, teamOf, upcoming, visibleBeneficiaries } from "@/lib/logic";
+import { awaitingReply, isStaff, openTasks, teamOf, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
 import { LATEST_UPDATE } from "@/lib/updates";
-import { hidayaSummary } from "@/lib/programs";
 
 export const dynamic = "force-dynamic";
-
-type Item = { href: string; label: string; icon: React.ReactNode; badge?: number; dot?: boolean; exclude?: string[] };
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -33,58 +31,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const mine = visibleBeneficiaries(db, user).filter((b) => user.role !== "caller" || b.assignedTo === user.id);
   const waiting = mine.filter((b) => awaitingReply(db, b)).length;
   const overdue = openTasks(db).filter((task) => task.assigneeId === user.id && new Date(task.due).getTime() < now).length;
-  const unseenUpdate = (await cookies()).get("dawah_seen_update")?.value !== LATEST_UPDATE;
+  const unseenUpdate = featureOn(db, "updates") && (await cookies()).get("dawah_seen_update")?.value !== LATEST_UPDATE;
   const pendingShares = db.shares.filter((s) => s.userId === user.id).length;
-  const lessonsSoon = upcoming(db, mine, now, 1).filter((s) => s.at < now + 24 * HOUR).length;
 
-  const i = (Icon: typeof Home) => <Icon strokeWidth={1.9} />;
-  const staff = isStaff(user);
-  const recontact = hidayaSummary(db, visibleBeneficiaries(db, user).filter((b) => user.role !== "caller" || b.assignedTo === user.id)).recontact;
-  const sections: { label: string; items: Item[] }[] = [
-    { label: t("navHome"), items: [{ href: "/", label: t("home"), icon: i(Home) }] },
-    {
-      label: t("hidaya"),
-      items: [
-        { href: "/hidaya", label: t("hidayaTable"), icon: i(HeartHandshake), exclude: ["/hidaya/followup", "/hidaya/insights"] },
-        { href: "/hidaya/followup", label: t("recontact"), icon: i(PhoneCall), badge: recontact || undefined },
-        { href: "/hidaya/insights", label: t("hidayaInsights"), icon: i(BarChart3) },
-      ],
-    },
-    {
-      label: t("newMuslim"),
-      items: [
-        { href: "/beneficiaries", label: t("muslimTable"), icon: i(Sprout) },
-        { href: "/today", label: staff ? t("today") : t("overview"), icon: i(ClipboardList), badge: staff ? overdue : undefined },
-        { href: "/chats", label: t("chats"), icon: i(MessagesSquare), badge: waiting },
-        { href: "/groups", label: staff ? t("myGroups") : t("groups"), icon: i(UsersRound) },
-        ...(user.role !== "caller"
-          ? [
-              { href: "/schedule", label: t("schedule"), icon: i(CalendarClock), badge: lessonsSoon },
-              { href: "/lessons", label: t("lessons"), icon: i(BookOpen) },
-            ]
-          : []),
-        { href: "/share", label: t("addChat"), icon: i(Inbox), badge: pendingShares || undefined },
-        { href: "/insights", label: t("insights"), icon: i(Activity) },
-        ...(!staff
-          ? [
-              { href: "/dashboard", label: t("dashboard"), icon: i(Gauge) },
-              { href: "/rules", label: t("rules"), icon: i(Repeat) },
-            ]
-          : []),
-      ],
-    },
-    ...(!staff
-      ? [
-          {
-            label: t("navManage"),
-            items: [
-              { href: "/team", label: t("structure"), icon: i(Network) },
-              ...(user.role === "admin" ? [{ href: "/lists", label: t("listsTitle"), icon: i(ListChecks) }] : []),
-            ],
-          },
-        ]
-      : []),
-    { label: t("navAbout"), items: [{ href: "/updates", label: t("updates"), icon: i(Megaphone), dot: unseenUpdate }] },
+  // Four places only. Everything else opens from "More".
+  const nav: MainNavItem[] = [
+    { key: "today", href: "/", label: t("navToday"), icon: <Home strokeWidth={1.9} />, badge: isStaff(user) ? overdue || undefined : undefined, match: ["/", "/today"] },
+    { key: "chats", href: "/chats", label: t("navChats"), icon: <MessagesSquare strokeWidth={1.9} />, badge: waiting + pendingShares || undefined, match: ["/chats", "/share"] },
+    { key: "people", href: "/people", label: t("navPeople"), icon: <UsersRound strokeWidth={1.9} />, match: ["/people", "/hidaya", "/beneficiaries", "/groups"] },
+    { key: "more", href: "/more", label: t("navMore"), icon: <Grid2x2 strokeWidth={1.9} />, dot: unseenUpdate, match: ["/more"] },
   ];
   const team = teamOf(db, user);
 
@@ -99,17 +54,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <div className="text-[11px] text-night-text/80">{t("appTagline")}</div>
           </div>
         </div>
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
-          {sections.map((s) => (
-            <div key={s.label}>
-              <div className="mb-1.5 px-3 text-[11px] font-medium tracking-wide text-night-text/60">{s.label}</div>
-              <div className="space-y-0.5">
-                {s.items.map((item) => (
-                  <NavLink key={item.href} {...item} />
-                ))}
-              </div>
-            </div>
-          ))}
+        <nav className="flex-1 overflow-y-auto px-3 pb-4">
+          <MainNav items={nav} variant="sidebar" />
         </nav>
         <div className="m-3 rounded-2xl bg-white/6 p-3">
           <div className="flex items-center gap-3">
@@ -149,7 +95,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       {/* Mobile header */}
       <header className="bg-pattern sticky top-0 z-30 bg-night text-white lg:hidden">
-        <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+        <div className="flex items-center gap-3 px-4 py-3">
           <Logo small />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold">{user.name}</div>
@@ -164,14 +110,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </button>
           </form>
         </div>
-        <nav className="scrollbar-none flex gap-1 overflow-x-auto px-3 pb-2">
-          {sections.flatMap((s) => s.items).map((item) => (
-            <NavLink key={item.href} {...item} />
-          ))}
-        </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-10 lg:py-9">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-24 lg:px-10 lg:py-9">{children}</main>
+
+      {/* Phone tab bar: the same four places, always in reach of the thumb */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+        <MainNav items={nav} variant="tabbar" />
+      </nav>
     </div>
   );
 }

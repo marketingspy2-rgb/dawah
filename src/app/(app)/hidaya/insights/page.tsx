@@ -3,6 +3,7 @@ import { CategoryChip } from "@/components/fields";
 import { ProgramNav } from "@/components/program-nav";
 import { Bar, Card, PageHeader, Stat, cx } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { HIJRI_MONTHS, HIJRI_MONTHS_EN, hijriOf, isoDay } from "@/lib/hijri";
 import { translator } from "@/lib/i18n";
 import { pct, staffUnder, visibleBeneficiaries } from "@/lib/logic";
@@ -16,6 +17,7 @@ export default async function HidayaInsightsPage() {
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "hidayaInsights");
   const today = isoDay();
   const list = visibleBeneficiaries(db, user);
   const cases = hidayaCases(list);
@@ -65,7 +67,7 @@ export default async function HidayaInsightsPage() {
   return (
     <>
       <PageHeader eyebrow={t("hidayaEyebrow")} title={t("hidayaInsights")} subtitle={t("hidayaInsightsSub")} />
-      <ProgramNav program="hidaya" active="insights" t={t} role={user.role} counts={{ followup: s.recontact }} />
+      <ProgramNav program="hidaya" active="insights" t={t} role={user.role} db={db} counts={{ followup: s.recontact }} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={Sprout} label={t("convertedMonth")} value={s.convertedMonth} hint={`${t("convertedYear")}: ${s.convertedYear} · ${t("total")}: ${s.converted}`} tone="ok" />

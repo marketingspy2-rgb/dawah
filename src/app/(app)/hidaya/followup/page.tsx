@@ -7,6 +7,7 @@ import { ProgramNav } from "@/components/program-nav";
 import { reasonText } from "@/components/reasons";
 import { Avatar, Card, Empty, PageHeader } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { formatHijri, isoDay } from "@/lib/hijri";
 import { translator } from "@/lib/i18n";
 import { canAct, canSeeName, displayName, staffUnder, visibleBeneficiaries } from "@/lib/logic";
@@ -23,6 +24,7 @@ export default async function RecontactPage({ searchParams }: { searchParams: Pr
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "recontact");
   const today = isoDay();
   const staff = staffUnder(db, user).filter((u) => u.role === "caller");
   const cases = activeHidaya(visibleBeneficiaries(db, user)).filter((b) => (user.role === "caller" ? b.assignedTo === user.id : !owner || b.assignedTo === owner));
@@ -86,7 +88,7 @@ export default async function RecontactPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader eyebrow={t("hidayaEyebrow")} title={t("recontact")} subtitle={t("recontactSub")} />
-      <ProgramNav program="hidaya" active="followup" t={t} role={user.role} counts={{ followup: due.length + cold.length }} />
+      <ProgramNav program="hidaya" active="followup" t={t} role={user.role} db={db} counts={{ followup: due.length + cold.length }} />
       {user.role !== "caller" && (
         <form className="mb-4 flex items-center gap-2">
           <select name="owner" defaultValue={owner ?? ""} className="w-auto!" aria-label={F.callerFollow[lang]}>

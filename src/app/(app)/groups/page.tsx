@@ -3,7 +3,9 @@ import { Plus, UsersRound } from "lucide-react";
 import { GroupCard } from "@/components/group-card";
 import { createGroup } from "@/app/actions";
 import { Avatar, Button, Card, Empty, Field, PageHeader, Pill, RoleBadge } from "@/components/ui";
+import { ProgramNav } from "@/components/program-nav";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { LANG_LABELS, translator } from "@/lib/i18n";
 import { isStaff, staffUnder, visibleGroups } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -16,12 +18,14 @@ export default async function GroupsPage() {
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "groups");
   const groups = visibleGroups(db, user);
   const owners = staffUnder(db, user).filter((s) => groups.some((g) => g.ownerId === s.id) || s.id === user.id);
 
   return (
     <>
       <PageHeader title={isStaff(user) ? t("myGroups") : t("groups")} subtitle={t("groupsSub")} />
+      <ProgramNav program="muslim" active="groups" t={t} role={user.role} db={db} />
 
       <div className="space-y-8">
         {owners.map((owner) => {

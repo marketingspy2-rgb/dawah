@@ -1,5 +1,6 @@
 "use server";
 
+import { FEATURES } from "@/lib/features";
 import { cookies, headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -1114,3 +1115,17 @@ export async function createGroup(formData: FormData) {
   redirect(`/groups/${id}`);
 }
 
+
+/** Management switches features on or off for everyone. Core features always stay on. */
+export async function saveFeatures(formData: FormData) {
+  const user = await requireUser();
+  if (user.role !== "admin") throw new Error("Not allowed");
+  await mutate((db) => {
+    const features: Record<string, boolean> = {};
+    for (const f of FEATURES) if (!f.core) features[f.key] = formData.get(`f_${f.key}`) === "on";
+    db.settings.features = features;
+    audit(db, user, "features", "settings");
+  });
+  refresh();
+  redirect("/features?saved=1");
+}

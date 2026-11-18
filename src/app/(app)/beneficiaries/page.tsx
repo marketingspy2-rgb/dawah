@@ -71,7 +71,7 @@ export default async function NewMuslimsPage({ searchParams }: { searchParams: P
           </LinkButton>
         }
       />
-      <ProgramNav program="muslim" active="table" t={t} role={user.role} />
+      <ProgramNav program="muslim" active="table" t={t} role={user.role} db={db} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[

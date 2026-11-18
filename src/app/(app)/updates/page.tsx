@@ -3,6 +3,8 @@ import { CirclePlus, Sparkles, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { MarkUpdatesSeen } from "@/components/client";
 import { PageHeader, cx } from "@/components/ui";
+import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { translator } from "@/lib/i18n";
 import { getUiLang, requireUser } from "@/lib/session";
 import { LATEST_UPDATE, UPDATES, type UpdateKind } from "@/lib/updates";
@@ -18,6 +20,7 @@ const KIND: Record<UpdateKind, { icon: LucideIcon; cls: string; key: "kindNew" |
 /** Every change to the platform, explained for the people who use it. */
 export default async function UpdatesPage() {
   await requireUser();
+  requireFeature(readDb(), "updates");
   const lang = await getUiLang();
   const t = translator(lang);
   const date = new Intl.DateTimeFormat(lang === "ar" ? "ar-SA-u-nu-latn-ca-gregory" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });

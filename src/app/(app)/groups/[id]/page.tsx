@@ -4,6 +4,7 @@ import { BellRing, BookOpen, CalendarClock, Settings2, UsersRound } from "lucide
 import { sendGroupNow, sendLessonNow, updateGroupSchedule } from "@/app/actions";
 import { Avatar, Bar, Button, Card, Empty, Field, LessonDots, LevelBadge, Notice, PageHeader, PersonName, Pill, StageBadge, WhatsAppLink, WhatsAppSubmit, cx } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { LANG_LABELS, translator } from "@/lib/i18n";
 import { awaitingReply, canManageUser, displayName, formatHour, groupMembers, lastMessage, learnerState, localTime, nextScheduled, relTime, teamOf, trackLessons, visibleGroups, weekdayName } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -17,6 +18,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "groups");
   const now = Date.now();
   const group = visibleGroups(db, user).find((g) => g.id === id);
   if (!group) notFound();

@@ -11,6 +11,7 @@ import { QuickLog } from "@/components/quick-log";
 import { LockIcon } from "@/components/icons";
 import { Avatar, Button, Card, Crumbs, Empty, Field, LevelBadge, Notice, Pill, RoleBadge, WhatsAppLink, cx } from "@/components/ui";
 import { mutate, newId, readDb } from "@/lib/db";
+import { featureOn } from "@/lib/features";
 import { TASK_KIND_LABELS, langDir, translator } from "@/lib/i18n";
 import { formatGregorian, formatHijri } from "@/lib/hijri";
 import { F, STAGE_NAMES, lessonsDone, muslimStage } from "@/lib/programs";
@@ -257,9 +258,11 @@ export default async function BeneficiaryPage({
           {actable && (
             <Card title={t("quickLog")} icon={Hand} action={<span className="hidden text-xs text-muted sm:block">{t("quickLogHint")}</span>}>
               <QuickLog db={db} user={user} beneficiaryId={b.id} lang={lang} t={t} />
-              <div className="mt-4 border-t border-border pt-3">
-                <PhoneSend b={b} ctx={{ db, user, lang, t, origin }} />
-              </div>
+              {featureOn(db, "phoneSend") && (
+                <div className="mt-4 border-t border-border pt-3">
+                  <PhoneSend b={b} ctx={{ db, user, lang, t, origin }} />
+                </div>
+              )}
             </Card>
           )}
 

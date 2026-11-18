@@ -3,6 +3,7 @@ import { BellRing, BookOpen, CalendarClock, PauseCircle } from "lucide-react";
 import { sendLessonNow } from "@/app/actions";
 import { Avatar, Card, Empty, Notice, PageHeader, PersonName, Pill, WhatsAppSubmit, cx } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { LANG_LABELS, translator } from "@/lib/i18n";
 import { canAct, centerTime, dayKey, displayName, formatDay, isStaff, localTime, upcoming, visibleBeneficiaries, visibleGroups } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -15,6 +16,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "schedule");
   const now = Date.now();
   const list = visibleBeneficiaries(db, user).filter((b) => b.assignedTo === user.id || !isStaff(user));
   const items = upcoming(db, list, now, 7);

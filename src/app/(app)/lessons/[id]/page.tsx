@@ -9,6 +9,7 @@ import { Button, Card, Field, Notice, PageHeader, Pill, WhatsAppSubmit, cx } fro
 import { TEMPLATES, fillTemplate } from "@/lib/content";
 import { LEARNER_UI, SPEECH_LANG, missingLanguages } from "@/lib/curriculum";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { LANG_NATIVE, langDir, translator } from "@/lib/i18n";
 import { canAct, displayName, formatDate, lessonStats, relTime, trackLessons, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -31,6 +32,7 @@ export default async function LessonPage({ params, searchParams }: { params: Pro
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "lessons");
 
   const isNew = id === "new";
   const found = db.lessons.find((x) => x.id === id);

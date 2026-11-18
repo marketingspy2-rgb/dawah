@@ -3,6 +3,7 @@ import { BellRing, HeartHandshake, MessageCircleReply, PhoneMissed, Save, UserPl
 import { saveRules } from "@/app/actions";
 import { Button, Card, Field, Notice, PageHeader, Pill } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { STAGE_LABELS, translator, type T } from "@/lib/i18n";
 import { DAY, relTime } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -52,6 +53,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "rules");
   const now = Date.now();
   const { rules: r, rulesUpdatedAt, rulesUpdatedBy } = db.settings;
 

@@ -3,6 +3,7 @@ import { BookOpen, CircleAlert, Mic, Plus } from "lucide-react";
 import { Card, LinkButton, PageHeader, Pill, cx } from "@/components/ui";
 import { missingLanguages } from "@/lib/curriculum";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { LANG_NATIVE, translator } from "@/lib/i18n";
 import { lessonStats, trackLessons } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -15,6 +16,7 @@ export default async function LessonsPage() {
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "lessons");
   const canEdit = user.role !== "caller";
 
   return (

@@ -4,6 +4,7 @@ import { stagePaste } from "@/app/actions";
 import { InstallButton, PendingButton } from "@/components/client";
 import { Card, PageHeader } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { translator } from "@/lib/i18n";
 import { relTime } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -16,6 +17,7 @@ export default async function SharePage() {
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "addChat");
   const pending = db.shares.filter((s) => s.userId === user.id).sort((a, c) => c.at.localeCompare(a.at));
 
   return (

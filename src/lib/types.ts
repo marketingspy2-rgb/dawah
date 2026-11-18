@@ -304,6 +304,8 @@ export type Settings = {
   lists: Record<ListKey, string[]>;
   /** Days between contacts for each هداية classification before the case needs contact again. */
   recontactDays: Record<string, number>;
+  /** Features management has switched off. Missing means on, so new features start on. */
+  features?: Partial<Record<string, boolean>>;
 };
 
 export type AuditEntry = {

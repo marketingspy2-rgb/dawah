@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Activity, BookOpen, Clock, Filter, HeartPulse, MessageCircle, Repeat, Scale, Sprout, Users } from "lucide-react";
 import { Avatar, Bar, Card, Empty, PageHeader, Pill, RoleBadge, Stat, Tabs, cx } from "@/components/ui";
 import { readDb } from "@/lib/db";
+import { requireFeature } from "@/lib/features";
 import { STAGE_LABELS, translator } from "@/lib/i18n";
 import { formatHour, funnelMetrics, isStaff, learningMetrics, platformMetrics, relTime, staffMetrics, staffUnder, supervisorMetrics, teamOf, visibleBeneficiaries } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
@@ -23,6 +24,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const lang = await getUiLang();
   const t = translator(lang);
   const db = readDb();
+  requireFeature(db, "dashboard");
   const now = Date.now();
   const scope = visibleBeneficiaries(db, user);
   const staff = staffUnder(db, user);

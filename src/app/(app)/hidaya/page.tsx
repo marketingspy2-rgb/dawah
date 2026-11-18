@@ -66,7 +66,7 @@ export default async function HidayaPage({ searchParams }: { searchParams: Promi
           )
         }
       />
-      <ProgramNav program="hidaya" active="table" t={t} role={user.role} counts={{ followup: recontact }} />
+      <ProgramNav program="hidaya" active="table" t={t} role={user.role} db={db} counts={{ followup: recontact }} />
 
       <form className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))_auto]">
         <input type="hidden" name="view" value={view} />

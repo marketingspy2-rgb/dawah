@@ -23,6 +23,21 @@ const S = {
   navManage: ["الإدارة", "Management"],
   navAbout: ["عن المنصة", "About"],
 
+  // Main navigation: four places only
+  navToday: ["يومي", "My day"],
+  navChats: ["المحادثات", "Chats"],
+  navPeople: ["المستفيدون", "People"],
+  navMore: ["المزيد", "More"],
+  peopleTitle: ["المستفيدون", "People"],
+  peopleSub: ["اختر البرنامج: هداية لمن لا يزال التواصل معهم قائمًا، والمسلم الجديد لمن أسلم.", "Pick a program: Hidaya for people still being called, New Muslim for those who embraced Islam."],
+  moreTitle: ["المزيد", "More"],
+  moreSub: ["كل ما عدا العمل اليومي، في مكان واحد.", "Everything beyond daily work, in one place."],
+  appearance: ["الحساب واللغة", "Account and language"],
+  featuresTitle: ["المميزات", "Features"],
+  featuresSub: ["عطّل أي ميزة لا تحتاجها الآن، فتختفي من المنصة للجميع، وفعّلها متى احتجتها. الأساسيات لا تُعطّل.", "Switch off any feature you do not need now and it disappears for everyone. Switch it back on any time. Core parts stay on."],
+  featureOn: ["مفعّلة", "On"],
+  featureCore: ["أساسية", "Core"],
+
   // Session
   switchLang: ["English", "العربية"],
   logout: ["تبديل المستخدم", "Switch user"],
