@@ -78,7 +78,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <form action={logout} className="ms-auto">
               <button className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-night-text hover:bg-white/8 hover:text-white">
                 <LogOut className="size-3.5 rtl:-scale-x-100" />
-                {t("logout")}
+                {t(featureOn(db, "passwordLogin") ? "signOut" : "logout")}
               </button>
             </form>
           </div>
@@ -105,7 +105,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <button className="rounded-lg bg-white/10 px-2.5 py-1.5 text-xs">{t("switchLang")}</button>
           </form>
           <form action={logout}>
-            <button aria-label={t("logout")} className="grid size-8 place-items-center rounded-lg bg-white/10">
+            <button aria-label={t(featureOn(db, "passwordLogin") ? "signOut" : "logout")} className="grid size-8 place-items-center rounded-lg bg-white/10">
               <LogOut className="size-4 rtl:-scale-x-100" />
             </button>
           </form>

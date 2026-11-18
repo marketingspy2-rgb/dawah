@@ -24,7 +24,8 @@ import {
   windowOpen,
 } from "@/lib/logic";
 import { applyImport, guessBeneficiarySender, parseWhatsAppExport, stageShare, textFromFile } from "@/lib/chat-import";
-import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser } from "@/lib/session";
+import { AFTER_LOGIN_COOKIE, LANG_COOKIE, USER_COOKIE, getUiLang, requireUser, sessionCookieFor } from "@/lib/session";
+import { MIN_PASSWORD, hashPassword, verifyPassword } from "@/lib/auth";
 import { addDays, fromHijri, isoDay } from "@/lib/hijri";
 import { CONVERTED, DEFAULT_RECONTACT_DAYS, FOLLOWUP_LABELS, LANG_LABEL_FOR, applyHidayaLog, emptyHidaya, emptyMuslim, langCodeFor, langCodeOf, nextSerial, recontactDays } from "@/lib/programs";
 import type { Beneficiary, DB, HidayaFollowup, Lang, Lesson, Message, Stage, StaffRole, Touch, TouchKind, User, Weekday } from "@/lib/types";
@@ -57,11 +58,34 @@ async function backWith(params: Record<string, string | number>, fallback = "/")
 
 export async function login(formData: FormData) {
   const id = String(formData.get("userId"));
-  const user = (await loadDb()).users.find((u) => u.id === id);
+  const db = await loadDb();
+  // Once password sign-in is on, picking a name is no longer enough.
+  if (featureOn(db, "passwordLogin")) redirect("/login");
+  const user = db.users.find((u) => u.id === id && u.status !== "left");
   if (!user) return;
+  await startSession(user.id);
+}
+
+/** Sign in with a username and password, once management has switched password sign-in on. */
+export async function loginWithPassword(formData: FormData) {
+  const username = str(formData, "username").toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  const db = await loadDb();
+  const user = db.users.find((u) => u.username?.toLowerCase() === username && u.status !== "left");
+  // Same wait and same message whether the name or the password is wrong.
+  const ok = await verifyPassword(password, user?.passwordHash ?? "pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAA");
+  if (!user || !ok) {
+    await mutate((d) => audit(d, user ?? null, "login_failed", username.slice(0, 40)));
+    redirect("/login?err=1");
+  }
+  await mutate((d) => audit(d, user, "login", user.id));
+  await startSession(user.id);
+}
+
+async function startSession(id: string) {
   const jar = await cookies();
   // Stay signed in on the phone, so chats shared from WhatsApp land straight in the platform.
-  jar.set(USER_COOKIE, id, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
+  jar.set(USER_COOKIE, await sessionCookieFor(id), { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 30 * 86_400 });
   await mutate((db) => {
     const u = db.users.find((x) => x.id === id)!;
     u.lastSeenAt = new Date().toISOString();
@@ -69,6 +93,38 @@ export async function login(formData: FormData) {
   const next = jar.get(AFTER_LOGIN_COOKIE)?.value;
   jar.delete(AFTER_LOGIN_COOKIE);
   redirect(next?.startsWith("/share/") ? next : "/");
+}
+
+/** Management (or a supervisor for their team) sets someone's sign-in name and password; anyone can change their own. */
+export async function setCredentials(formData: FormData) {
+  const user = await requireUser();
+  const targetId = str(formData, "userId");
+  const username = str(formData, "username").toLowerCase().replace(/\s+/g, "");
+  const password = String(formData.get("password") ?? "");
+  let error = "";
+  if (password && password.length < MIN_PASSWORD) error = "short";
+  const hash = password && !error ? await hashPassword(password) : null;
+  await mutate((db) => {
+    const target = db.users.find((u) => u.id === targetId);
+    if (!target || (target.id !== user.id && !canManageUser(db, user, target))) throw new Error("Not allowed");
+    if (error) return;
+    if (username && username !== target.username) {
+      if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+        error = "username";
+        return;
+      }
+      if (db.users.some((u) => u.id !== target.id && u.username === username)) {
+        error = "taken";
+        return;
+      }
+      // Only management and supervisors give sign-in names.
+      if (target.id !== user.id || user.role === "admin") target.username = username;
+    }
+    if (hash) target.passwordHash = hash;
+    audit(db, user, hash ? "set_password" : "set_username", target.id);
+  });
+  refresh();
+  await backWith(error ? { credErr: error } : { credSaved: 1 });
 }
 
 export async function logout() {
@@ -1140,14 +1196,21 @@ export async function createGroup(formData: FormData) {
 export async function saveFeatures(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "admin") throw new Error("Not allowed");
+  let blocked = false;
   await mutate((db) => {
     const features: Record<string, boolean> = {};
     for (const f of FEATURES) if (!f.core) features[f.key] = formData.get(`f_${f.key}`) === "on";
+    // Turning on password sign-in without a password of your own would lock management out.
+    const me = db.users.find((u) => u.id === user.id);
+    if (features.passwordLogin && !(me?.username && me.passwordHash)) {
+      features.passwordLogin = false;
+      blocked = true;
+    }
     db.settings.features = features;
     audit(db, user, "features", "settings");
   });
   refresh();
-  redirect("/features?saved=1");
+  redirect(blocked ? "/features?saved=1&needPassword=1" : "/features?saved=1");
 }
 
 // ---------- Capture links (public, no login) ----------

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, HelpCircle, Inbox, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ShieldCheck, ToggleRight, UsersRound } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, Gauge, GraduationCap, HelpCircle, Inbox, KeyRound, ListChecks, Megaphone, Network, PhoneCall, PhoneOutgoing, QrCode, Repeat, ScrollText, ShieldCheck, ToggleRight, UsersRound } from "lucide-react";
 import type { DB, Role, UiLang } from "./types";
 
 /**
@@ -21,6 +21,8 @@ export type Feature = {
   group: FeatureGroup;
   /** Where the feature is reached from. Only "more" features get a tile on the More screen. */
   place?: "more" | "people" | "chats" | "inside";
+  /** Starts switched off until management turns it on. */
+  defaultOff?: boolean;
   /** Core features cannot be switched off: without them the platform cannot be run. */
   core?: boolean;
 };
@@ -190,6 +192,35 @@ export const FEATURES: Feature[] = [
     core: true,
   },
   {
+    key: "access",
+    href: "/access",
+    icon: KeyRound,
+    title: { ar: "أسماء الدخول وكلمات المرور", en: "Usernames and passwords" },
+    desc: { ar: "ضع لكل موظف اسم دخول وكلمة مرور", en: "Give each staff member a username and password" },
+    roles: ["admin", "supervisor"],
+    group: "manage",
+    core: true,
+  },
+  {
+    key: "passwordLogin",
+    icon: KeyRound,
+    title: { ar: "الدخول بكلمة مرور", en: "Password sign-in" },
+    desc: { ar: "كل موظف يدخل باسم دخول وكلمة مرور تضعها له الإدارة أو مشرفه، بدل اختيار الاسم من قائمة. ضع لنفسك كلمة مرور أولًا.", en: "Each staff member signs in with a username and password set by management or their supervisor, instead of picking a name. Set your own password first." },
+    roles: ["admin"],
+    group: "manage",
+    place: "inside",
+    defaultOff: true,
+  },
+  {
+    key: "auditLog",
+    href: "/audit",
+    icon: ScrollText,
+    title: { ar: "سجل الاطلاع", en: "Access log" },
+    desc: { ar: "من دخل، ومن فتح أي ملف، ومن غيّر ماذا ومتى", en: "Who signed in, who opened which file, who changed what and when" },
+    roles: ["admin"],
+    group: "manage",
+  },
+  {
     key: "updates",
     href: "/updates",
     icon: Megaphone,
@@ -211,7 +242,8 @@ export const FEATURE_GROUPS: { key: FeatureGroup; title: Record<UiLang, string> 
 export function featureOn(db: DB, key: string) {
   const f = FEATURES.find((x) => x.key === key);
   if (f?.core) return true;
-  return db.settings.features?.[key] !== false;
+  const set = db.settings.features?.[key];
+  return set === undefined ? !f?.defaultOff : set;
 }
 
 /** The tiles on this person's More screen, in list order. */

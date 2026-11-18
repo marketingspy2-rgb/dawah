@@ -29,6 +29,9 @@ export type User = {
   teamId: string | null;
   status: "available" | "leave" | "left";
   lastSeenAt: string | null;
+  /** Sign-in name and password, set by management. Used once password sign-in is switched on. */
+  username?: string;
+  passwordHash?: string;
 };
 
 export type Team = { id: string; name: string; supervisorId: string };
@@ -306,6 +309,8 @@ export type Settings = {
   recontactDays: Record<string, number>;
   /** Features management has switched off. Missing means on, so new features start on. */
   features?: Partial<Record<string, boolean>>;
+  /** Signs the session cookie when no SESSION_SECRET is configured. Made on first use. */
+  sessionSecret?: string;
 };
 
 /**

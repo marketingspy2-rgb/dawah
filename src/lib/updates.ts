@@ -15,6 +15,30 @@ export type UpdateEntry = {
 
 export const UPDATES: UpdateEntry[] = [
   {
+    id: "2026-11-18-passwords",
+    date: "2026-11-18",
+    title: { ar: "الدخول بكلمة مرور، وسجل الاطلاع", en: "Password sign-in, and an access log" },
+    items: [
+      {
+        kind: "new",
+        ar: "صفحة «أسماء الدخول وكلمات المرور» للإدارة والمشرفين: اسم دخول وكلمة مرور لكل موظف. وكل شخص يغيّر كلمة مروره من «المزيد».",
+        en: "A “Usernames and passwords” page for management and supervisors: a username and password for each staff member. Everyone can change their own password in More.",
+        href: "/access",
+      },
+      {
+        kind: "new",
+        ar: "عند تفعيل «الدخول بكلمة مرور» من «المميزات» تختفي قائمة الأسماء من صفحة الدخول، ويدخل كل موظف باسمه وكلمة مروره. لا يُفعَّل حتى تضع الإدارة كلمة مرور لنفسها.",
+        en: "Once “Password sign-in” is switched on in Features, the list of names leaves the sign-in page and everyone signs in with their own username and password. It cannot be switched on before management has a password.",
+      },
+      {
+        kind: "new",
+        ar: "«سجل الاطلاع» للإدارة: من دخل، ومحاولات الدخول الخاطئة، ومن فتح أي ملف، ومن غيّر ماذا ومتى.",
+        en: "An “Access log” for management: sign-ins, failed attempts, who opened which file, and who changed what and when.",
+        href: "/audit",
+      },
+    ],
+  },
+  {
     id: "2026-11-18-ask-scholars",
     date: "2026-11-18",
     title: { ar: "اسأل أهل العلم، وفحص المحتوى الشرعي", en: "Ask the scholars, and a religious content check" },

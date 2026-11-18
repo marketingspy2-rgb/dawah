@@ -2,10 +2,12 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { Languages, LogOut, RotateCcw } from "lucide-react";
 import { logout, resetDemo, toggleLang } from "@/app/actions";
-import { Avatar, Card, PageHeader, cx } from "@/components/ui";
+import { CredentialsCard } from "@/components/credentials";
+import { Avatar, Card, Notice, PageHeader, cx } from "@/components/ui";
+import { MIN_PASSWORD } from "@/lib/auth";
 import { readDb } from "@/lib/db";
-import { FEATURE_GROUPS, moreTiles } from "@/lib/features";
-import { roleLabel, translator } from "@/lib/i18n";
+import { FEATURE_GROUPS, featureOn, moreTiles } from "@/lib/features";
+import { roleLabel, translator, type TKey } from "@/lib/i18n";
 import { teamOf } from "@/lib/logic";
 import { getUiLang, requireUser } from "@/lib/session";
 import { LATEST_UPDATE } from "@/lib/updates";
@@ -13,7 +15,8 @@ import { LATEST_UPDATE } from "@/lib/updates";
 export const dynamic = "force-dynamic";
 
 /** Everything beyond the three daily places, as tiles grouped by purpose. */
-export default async function MorePage() {
+export default async function MorePage({ searchParams }: { searchParams: Promise<{ credSaved?: string; credErr?: string }> }) {
+  const { credSaved, credErr } = await searchParams;
   const user = await requireUser();
   const lang = await getUiLang();
   const t = translator(lang);
@@ -24,6 +27,8 @@ export default async function MorePage() {
 
   return (
     <>
+      {credSaved && <Notice tone="ok">{t("credSaved")}</Notice>}
+      {credErr && <Notice tone="bad">{t(`credErr_${credErr}` as TKey, { n: MIN_PASSWORD })}</Notice>}
       <PageHeader title={t("moreTitle")} subtitle={t("moreSub")} />
       <div className="space-y-6">
         {FEATURE_GROUPS.map((g) => {
@@ -52,6 +57,8 @@ export default async function MorePage() {
           );
         })}
 
+        <CredentialsCard target={user} canSetName={user.role === "admin"} t={t} title={t("credMine")} />
+
         <Card title={t("appearance")}>
           <div className="flex items-center gap-3">
             <Avatar name={user.name} />
@@ -73,7 +80,7 @@ export default async function MorePage() {
             <form action={logout}>
               <button className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm hover:bg-surface-2">
                 <LogOut className="size-4 rtl:-scale-x-100" />
-                {t("logout")}
+                {t(featureOn(db, "passwordLogin") ? "signOut" : "logout")}
               </button>
             </form>
             {user.role === "admin" && (

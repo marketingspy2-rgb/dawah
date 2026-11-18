@@ -9,8 +9,8 @@ import { getUiLang, requireUser } from "@/lib/session";
 export const dynamic = "force-dynamic";
 
 /** Management switches any feature off when it is not needed, and back on when it is. */
-export default async function FeaturesPage({ searchParams }: { searchParams: Promise<{ saved?: string }> }) {
-  const { saved } = await searchParams;
+export default async function FeaturesPage({ searchParams }: { searchParams: Promise<{ saved?: string; needPassword?: string }> }) {
+  const { saved, needPassword } = await searchParams;
   const user = await requireUser();
   if (user.role !== "admin") notFound();
   const lang = await getUiLang();
@@ -19,7 +19,8 @@ export default async function FeaturesPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      {saved && <Notice tone="ok">{t("savedOk")}</Notice>}
+      {saved && !needPassword && <Notice tone="ok">{t("savedOk")}</Notice>}
+      {needPassword && <Notice tone="warn">{t("needPassword")}</Notice>}
       <PageHeader title={t("featuresTitle")} subtitle={t("featuresSub")} />
       <form action={saveFeatures} className="space-y-6">
         {FEATURE_GROUPS.map((g) => {
